@@ -23,7 +23,7 @@ from matplotlib.backend_bases import key_press_handler
 from matplotlib.figure import Figure
 
 from numpy import *
-
+import math
 import datetime
 
 
@@ -97,6 +97,231 @@ class EllipticalPath():
         self.Snow = self.S[sind]
         self.xnow,self.ynow = 0,0
 
+class PersistentFish():
+    """
+    Class defining a fish following persistent random turning behavior as 
+    detailed in Zienkiewicz 2015 paper.
+    sigma_u = 0.059;                        % (m/s)
+    theta_u = 4.21;                         % (s^-1)
+    mu_u = 0.1402;                          % mean speed (m/s)
+
+    sigma_w = 2.85;                         % (rad/s)
+    theta_w = 2.74;                         % (s^-1)
+    mu_w = -0.02;                           % mean yaw rate (rad/s)
+
+    fw = 0.0;                               % Forcing term due to boundaries
+    dw = 0.0;                               % Magnitude of distance to boundary
+
+    sigma_o = 12;                           % saturation variance (rad/s)
+    fc = 0.0;                               % coupling function, forcing term
+    
+    U = zeros(size(time));                  % swimming speed array (m/s)
+    dU = zeros(size(time));                 % change in swimming speed (m/s^2)
+    Omega = zeros(size(time));              % yaw rate, changes w random input (rad/s)
+    dOmega = zeros(size(time));             % change in yaw rate, acceleration, (rad/s^2)
+    dW = randn(size(time));                 % random input to yaw rate, should be Brownian if possible
+    dZ = randn(size(time));                 % random input to speed, should be Brownian if possible
+
+    xpos = zeros(size(time));               % Global x position (m)
+    dxpos = zeros(size(time));              % Change in global x position (m/s)
+    ypos = zeros(size(time));               % Global y position (m)
+    dypos = zeros(size(time));              % Change in global y position (m/s)
+
+    xpos(1) = 0;
+    ypos(1) = 0;
+
+    s = zeros(size(time));                  % Relative distance along curvilinear path
+    phi = zeros(size(time));                % Global heading (rad)
+    """
+    def __init__(self,sigma_u=0.059,theta_u=4.21,mu_u=0.1402,
+                 sigma_w=2.85,theta_w=2.74,mu_w=-0.02,sigma_o=12,fc=0):
+        self.sigma_u,self.theta_u,self.mu_u,self.sigma_w=sigma_u,theta_u,mu_u,sigma_w
+        self.theta_w,self.mu_w,self.sigma_o,self.fc = theta_w,mu_w,sigma_o,fc
+        self.U = 0. 
+        self.Omega = 0.
+        self.yawrate = 0.
+        self.xpos = 0. # position in middle of tank
+        self.ypos = 0.
+        self.S = 0.
+        self.phi = 0.
+
+        self.theta = arange(0,2*pi,.01) #range of thetas
+        self.tailtheta = 0
+        self.tailangle = 0
+        self.tailfreq = 0.
+        self.maxfreq = 2*2*pi
+
+        #for swimming up and down
+        self.z = 0
+        self.pitch = 0.
+        self.pitchnow = 0
+        self.laps = 0
+        self.f = None
+        self.maxamp = 1.5
+        self.maxspeed = 0.1
+
+    def updateGeometry(self,xmax,ymax,zmax):
+        self.x = xmax/2
+        self.y = ymax/2
+        self.z = zmax/2
+
+        self.bound_width = xmax
+        self.bound_length = ymax
+    
+        self.bounds = array([[        0,                        0                 ],
+                                [     0,                        self.bound_length ],
+                                [     self.bound_width,         self.bound_length ],
+                                [     self.bound_width,         0                 ]])
+
+
+    
+    def findDistance(self,bounds,xpos,ypos,psi):
+        
+        # Generate bound segments
+        m = zeros((bounds.shape[0],1))
+        for index in range(0,bounds.shape[0]):
+            m[index] = (bounds[index][1]-bounds[index-1][1])/(bounds[index][0]-bounds[index-1][0])
+        
+        bound_segments = append(bounds,m,axis=1)
+        # Uses point-slope form to find intersection of ray (fish heading) and the 
+        # bounds of the tank. Assumes psi is between 0 and 2pi
+        
+        # Create ray describing current heading
+        if psi<0:
+            psi += 2*math.pi
+        m_ray = math.tan(psi)
+        
+        x_intersect_arr = array([])
+        y_intersect_arr = array([])
+        
+        for index in range(0,bound_segments.shape[0]):
+            # Loop through each boundary segment and find intersection point
+            # Shortcut because we know the tank boundaries will always be either 
+            # vertical or horizontal. 
+            if abs(bound_segments[index][2]) == 0:
+                # Horizontal line described by y = num
+                y_intersect = bound_segments[index][1] # will intersect at this y value
+                x_intersect = (y_intersect + m_ray*xpos - ypos)/m_ray # point-slope solved for x
+            elif math.isinf(bound_segments[index][2]):
+                # Vertical line described by x = num
+                x_intersect = bound_segments[index][0] # will intersect this x value
+                y_intersect = m_ray*(x_intersect - xpos) + ypos # point-slope solved for y
+            
+            # Save values in array
+            x_intersect_arr = append(x_intersect_arr,x_intersect)
+            y_intersect_arr = append(y_intersect_arr,y_intersect)
+        
+        # Use intersection points to find distance
+        distances = sqrt(square(x_intersect_arr-xpos)+square(y_intersect_arr-ypos))
+        
+        # Now we need to find the right quadrant of intersection point.
+        quad_ray = math.floor(psi/(math.pi/2))+1
+        if (psi == math.pi/2 and xpos > 0) or (psi == math.pi and ypos > 0) or (psi == 3*math.pi/2 and xpos < 0):
+            # correct for weird instances where quadrant is iffy. Shouldn't ever occur
+            # because it's very very unlikely yaw will be exactly pi, pi/2, etc.
+            quad_ray -= 1
+        
+        if (psi == 0 and ypos < 0):
+            # see above, yes these are one-off solutions but again this shouldn't really occur
+            # in practice.
+            quad_ray = 4
+            
+        intersect_angles = arctan2(y_intersect_arr-ypos,x_intersect_arr-xpos)
+        for i in range(len(intersect_angles)):
+            if intersect_angles[i] < 0:
+                intersect_angles[i] += 2*math.pi
+                
+        quad_intersections = floor(intersect_angles/(math.pi/2))+1
+        
+        for i in range(len(quad_intersections)):                        # not out of the fish bounds
+            x_pt = x_intersect_arr[i]
+            y_pt = y_intersect_arr[i]
+            if ((quad_intersections[i] == quad_ray) and (abs(x_pt) <= (self.bound_width/2+0.1)) and (abs(y_pt) <= (self.bound_length/2+0.1))):
+                dw = distances[i]
+#                x_intersect_actual = x_intersect_arr[i]
+#                y_intersect_actual = y_intersect_arr[i]
+                break
+        return dw
+        
+    def calcDerivatives(self,Omega,U,xpos,ypos,phi):
+        """
+        Calculates derivatives based on previous values of yaw rate (Omega) and
+        forward speed (U). These stochastic differential equations also incorporate
+        coupling function (fc) and wall function (fw).
+        """
+        theta_w,mu_w,sigma_w = self.theta_w,self.mu_w,self.sigma_w
+        theta_u,mu_u,sigma_u = self.theta_u,self.mu_u,self.sigma_u
+        
+        sigma_o = self.sigma_o
+        dt = self.dt
+        
+        # Compute coupling force fc
+        fc = sigma_o*(2*sigma_o/sigma_w)**(-U/mu_u)
+        
+        # Compute wall force
+        dw = PersistentFish.findDistance(self,self.bounds,xpos,ypos,phi);
+        fw = 2.25*math.exp(-0.11*dw)
+        
+        if Omega >= 0:
+            # Repulsive behavior, depending on sign of previous turning speed 
+            # it'll push in either direction
+            fw = -fw
+        
+        # Obtain random values that act as forcing terms.
+        # randn() should work just like randn in matlab. Normally distributed about 0 mean
+        dZ = random.randn()
+        dW = random.randn()
+        
+        # Derivatives
+        Omegadot = theta_w*(mu_w+fw-Omega)*dt + fc*dZ;
+        Udot = theta_u*(mu_u-U)*dt + sigma_u*dW;
+        
+        return Omegadot, Udot, dw # return dw for detecting collision
+    
+    def updateStates(self,dt,Omega,U,xpos,ypos,phi,S):
+        self.dt = dt
+        Omegadot, Udot, dw = self.calcDerivatives(Omega,U,xpos,ypos,phi)
+        self.Omega += Omegadot*dt
+        self.U += Udot*dt
+        
+        if dw <= 0.1:
+            self.U = 0
+            
+        # Determine relative positions S, phi
+        self.S = S + self.U*dt
+        self.phi = phi + self.Omega*dt
+        if abs(self.phi)>=2*math.pi:
+            # Keep yaw within 0 to 2pi
+            if self.phi < 0:
+                self.phi += 2*math.pi
+            if self.phi > 0:
+                self.phi -= 2*math.pi
+        
+        # Use these to transform to local coordinates
+        self.xpos = xpos + self.U*math.cos(phi)*dt
+        self.ypos = ypos + self.U*math.sin(phi)*dt
+
+        # tail+dt*self.Uuff
+        self.znow = 0.
+        self.pitchnow = 0.
+        self.tailfreq = self.maxfreq
+        self.tailtheta+=self.tailfreq*dt
+        self.tailangle = self.maxamp*sin(self.tailtheta) - self.maxamp*self.yawrate
+        
+        return self.xpos, self.ypos, self.phi, self.znow, self.pitchnow, self.tailangle 
+        #return Omega, U, S, phi, xpos, ypos
+
+    
+    def drivePersistentFish(self,dt):
+        self.dt = dt
+        # Update states given current position and speed
+        self.updateStates(dt,self.Omega,self.U,self.xpos,self.ypos,self.phi,self.S)
+#        print(str(self.xpos)+'\t'+str(self.ypos)+'\n')
+#        print(str(self.phi)+'\n')
+
+        return self.Omega,self.U,self.xpos,self.ypos,self.phi,self.S
+
+
 
 class Window():
     def __init__(self, master=None):
@@ -158,9 +383,11 @@ class Window():
         self.a = .4
         self.b = .1
         self.c = .1
-        self.path = EllipticalPath(self.a,self.b,self.U,self.c)
+        #self.path = EllipticalPath(self.a,self.b,self.U,self.c)
         self.pathActive = False
         self.pathWasActive = False
+
+        self.path = PersistentFish()
 
         #initialize the window
         self.init_window()
@@ -351,7 +578,9 @@ class Window():
             self.zmax = float(self.Ezmax.get())
             self.pmax = float(self.Epmax.get())
             self.amax = float(self.Eamax.get())
-            self.path.updateGeometry(self.xmax/2,self.ymax/2,self.sU.get()/1000.0,self.zmax/2)
+            # self.path.updateGeometry(self.xmax/2,self.ymax/2,self.sU.get()/1000.0,self.zmax/2)
+            self.path.updateGeometry(self.xmax,self.ymax,self.zmax)
+            self.path.drivePersistentFish(self.delay/1000.0)
             print("updated path geometry")
         #update the path x and y positions
         if(not self.pathActive):
@@ -365,7 +594,8 @@ class Window():
 
     def pathloop(self):
         #if path is active, update the x and y commands
-        x,y,yaw,z,pitch,tail = self.path.update(self.delay/1000.0,self.sU.get()/1000.0)
+        #x,y,yaw,z,pitch,tail = self.path.update(self.delay/1000.0,self.sU.get()/1000.0)
+        x,y,yaw,z,pitch,tail = self.path.drivePersistentFish(self.delay/1000.0)
         #print(x,y,yaw)
         #now set the x and y sliders accordingly
         self.sx.set(x*self.sliderscale/self.xmax)
