@@ -159,24 +159,32 @@ class PersistentFish():
         self.f = None
         self.maxamp = 1.5
         self.maxspeed = 0.1
+        # xmax = 1
+        # ymax = 1
+        # zmax = 1
+        # self.updateGeometry(xmax,ymax,zmax)
 
     def updateGeometry(self,xmax,ymax,zmax):
         self.x = xmax/2
         self.y = ymax/2
         self.z = zmax/2
 
-        self.bound_width = xmax
-        self.bound_length = ymax
+        self.bound_X = xmax
+        self.bound_Y = ymax
     
         self.bounds = array([[        0,                        0                 ],
-                                [     0,                        self.bound_length ],
-                                [     self.bound_width,         self.bound_length ],
-                                [     self.bound_width,         0                 ]])
+                                [     0,                        self.bound_Y 	  ],
+                                [     self.bound_X 	  ,         self.bound_Y 	  ],
+                                [     self.bound_X 	  ,         0                 ]])
+
+        print("updateGeometry successful - ")
+        print("Bounds = \n")
+        print(self.bounds);
 
 
     
     def findDistance(self,bounds,xpos,ypos,psi):
-        
+
         # Generate bound segments
         m = zeros((bounds.shape[0],1))
         for index in range(0,bounds.shape[0]):
@@ -233,15 +241,22 @@ class PersistentFish():
                 
         quad_intersections = floor(intersect_angles/(math.pi/2))+1
         
+        flag = 0
         for i in range(len(quad_intersections)):                        # not out of the fish bounds
             x_pt = x_intersect_arr[i]
             y_pt = y_intersect_arr[i]
-            if ((quad_intersections[i] == quad_ray) and (abs(x_pt) <= (self.bound_width/2+0.1)) and (abs(y_pt) <= (self.bound_length/2+0.1))):
+            if ((quad_intersections[i] == quad_ray) and (abs(x_pt) <= (self.bound_X+0.1)) and (abs(y_pt) <= (self.bound_Y/2+0.1))):
                 dw = distances[i]
 #                x_intersect_actual = x_intersect_arr[i]
 #                y_intersect_actual = y_intersect_arr[i]
                 break
-        return dw
+            else:
+            	dw = 0.001
+            	flag = 1
+        if flag:
+        	print(str(xpos)+"\t"+str(ypos)+"\t"+str(psi))
+
+    	return dw
         
     def calcDerivatives(self,Omega,U,xpos,ypos,phi):
         """
@@ -388,6 +403,7 @@ class Window():
         self.pathWasActive = False
 
         self.path = PersistentFish()
+        self.path.updateGeometry(self.xmax,self.ymax,self.zmax)
 
         #initialize the window
         self.init_window()
