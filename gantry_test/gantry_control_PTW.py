@@ -72,6 +72,7 @@ class EllipticalPath():
         self.tailtheta+=self.tailfreq*dt
         self.tailangle = self.maxamp*sin(self.tailtheta) - self.maxamp*self.yawrate
         #print self.Snow,self.maxS
+        # print self.yawnow
         return self.xnow, self.ynow,self.yawnow,self.znow,self.pitchnow,self.tailangle
 
     def updateGeometry(self,a,b,U,c):
@@ -127,7 +128,7 @@ class PersistentFish():
     s = zeros(size(time));                  % Relative distance along curvilinear path
     psi = zeros(size(time));                % Global heading (rad)
     """
-    def __init__(self,sigma_u=0.14,theta_u=4.21,mu_u=0.1402,
+    def __init__(self,sigma_u=0.3772,theta_u=16.73,mu_u=0.061,
                  sigma_w=2.85,theta_w=2.74,mu_w=-0.02,sigma_o=12,fc=0):
     # ZIENK VALUES: self,sigma_u=0.059,theta_u=4.21,mu_u=0.1402, sigma_w=2.85,theta_w=2.74,mu_w=-0.02,sigma_o=12,fc=0
         self.sigma_u,self.theta_u,self.mu_u,self.sigma_w=sigma_u,theta_u,mu_u,sigma_w
@@ -249,9 +250,9 @@ class PersistentFish():
                 break
             else:
                 dw = 0.1
-                flag = 1
-        if flag:
-            print(str(x)+"\t"+str(y)+"\t"+str(psi))
+                # flag = 1
+        # if flag:
+        #     print(str(x)+"\t"+str(y)+"\t"+str(psi))
 
         return dw
         
@@ -268,11 +269,15 @@ class PersistentFish():
         dt = self.dt
         
         # Compute coupling force fc
-        fc = sigma_o*(2*sigma_o/sigma_w)**(-U/mu_u)
-        
+        if(U<mu_u):
+            fc=sigma_w
+        else:
+            fc=sigma_w
+            # fc = sigma_o*(2*sigma_o/sigma_w)**(-U/mu_u)
+            # print "fc= "+str(fc)
         # Compute wall force
         dw = PersistentFish.findDistance(self,self.bounds,x,y,psi);
-        fw = 2.25*math.exp(-0.11*dw)
+        fw = .25*math.exp(-0.11*dw)
         
         if Omega >= 0:
             # Repulsive behavior, depending on sign of previous turning speed 
@@ -295,6 +300,9 @@ class PersistentFish():
         Omegadot, Udot, dw = self.calcDerivatives(Omega,U,x,y,psi)
         self.Omega += Omegadot*dt
         self.U += Udot*dt
+        if(self.U<0):
+            print "U can't do that!"
+            self.U=0
         
         if dw <= 0.005:
             self.U = 0
@@ -314,25 +322,26 @@ class PersistentFish():
 #            if self.psi > 0:
 #                self.psi -= 2*math.pi
         
-        # # Use these to transform to local coordinates
-        # if ((self.x<.01) or (self.x>(self.bound_X-.01))):
-        #     self.x = self.x
-        # else:
-        #     self.x = x + self.U*math.cos(psi)*dt
-        # if (  (self.y<.01) or (self.y>(self.bound_Y - .01))):
-        #     self.y = self.y
-        # else:
-        #     self.y = y + self.U*math.sin(psi)*dt
-        self.y = y + self.U*math.sin(psi)*dt
-        self.x = x + self.U*math.cos(psi)*dt
+        # Use these to transform to local coordinates
+        if ((self.x<.01) or (self.x>(self.bound_X-.01))):
+            self.x = self.x
+        else:
+            self.x = x + self.U*math.cos(psi)*dt
+        if (  (self.y<.01) or (self.y>(self.bound_Y - .01))):
+            self.y = self.y
+        else:
+            self.y = y + self.U*math.sin(psi)*dt
+
+        # self.y = y + self.U*math.sin(self.psi)*dt
+        # self.x = x + self.U*math.cos(self.psi)*dt
 
         # tail+dt*self.Uuff
         self.z = 0.
         self.pitchnow = 0.
-        self.tailfreq = self.maxfreq
+        self.tailfreq = self.maxfreq*self.U/self.mu_u
         self.tailtheta+=self.tailfreq*dt
-        self.tailangle = self.maxamp*sin(self.tailtheta) - self.maxamp*self.yawrate
-        
+        self.tailangle = self.maxamp*sin(self.tailtheta) - 2*self.maxamp*self.yawrate
+        print self.psi
         return self.x, self.y, self.psi, self.z, self.pitchnow, self.tailangle 
         #return Omega, U, S, psi, x, y
 
@@ -627,11 +636,13 @@ class Window():
         #if path is active, update the x and y commands
         #x,y,yaw,z,pitch,tail = self.path.update(self.delay/1000.0,self.sU.get()/1000.0)
         x,y,z,pitch,yaw,tail = self.path.drivePersistentFish(self.delay/1000.0)
+        relyaw = yaw - self.path.laps*2*pi
+        print "relative yaw (pathloop): "+str(relyaw)
         #print(x,y,yaw)
         #now set the x and y sliders accordingly
         self.sx.set(x*self.sliderscale/self.xmax)
         self.sy.set(y*self.sliderscale/self.ymax)
-        self.sa.set(yaw*self.sliderscale/self.amax)
+        self.sa.set((relyaw)*self.sliderscale/self.amax)
         self.sz.set(z*self.sliderscale/self.zmax)
         self.st.set(tail*self.sliderscale/90.0)
         self.sp.set(pitch*self.sliderscale/self.pmax)
@@ -654,7 +665,9 @@ class Window():
         #first, get the value from each slider
         controlcommand = False
         if(not self.sendHome):
-            c1,c2,c3,c4,c5,c6 = float(self.sx.get())*self.xmax/self.sliderscale,float(self.sy.get())*self.ymax/self.sliderscale,float(self.sz.get())*self.zmax/self.sliderscale,float(self.sp.get())*self.pmax/self.sliderscale,(float(self.sa.get()))*self.amax/self.sliderscale+self.path.laps*2*pi,float(self.st.get())
+            # c1,c2,c3,c4,c5,c6 = float(self.sx.get())*self.xmax/self.sliderscale,float(self.sy.get())*self.ymax/self.sliderscale,float(self.sz.get())*self.zmax/self.sliderscale,float(self.sp.get())*self.pmax/self.sliderscale,(float(self.sa.get()))*self.amax/self.sliderscale+self.path.laps*2*pi,float(self.st.get())
+            c1,c2,c3,c4,c5,c6 = float(self.sx.get())*self.xmax/self.sliderscale,float(self.sy.get())*self.ymax/self.sliderscale,float(self.sz.get())*self.zmax/self.sliderscale,float(self.sp.get())*self.pmax/self.sliderscale,self.path.psi,float(self.st.get())
+
         else:
             controlcommand=True
             c1,c2,c3,c4,c5,c6 = -111.1,-111.1,-111.1,-111.1,-111.1,0
@@ -705,7 +718,7 @@ class Window():
             if len(splitline)==6:
                 ardt,f1,f2,f3,f4,f5 = float(splitline[0]),float(splitline[1]),float(splitline[2]),float(splitline[3]),float(splitline[4]),float(splitline[5])
                 #if we have fewer points than the buffer size (we haven't been running for long):
-                print "got:     " + str(ardt)+","+str(f1)+","+str(f2)+","+str(f3)+","+str(f4)+","+str(f5)
+                # print "got:     " + str(ardt)+","+str(f1)+","+str(f2)+","+str(f3)+","+str(f4)+","+str(f5)
         else:
             self.ser.flush()
 
@@ -802,7 +815,7 @@ class Window():
             self.feedbackline.set_data(self.tvec,self.f5)
             #set the axis limits
             self.ax.set_xlim([self.tvec[0],self.tvec[-1]])
-            self.ax.set_ylim([0,self.amax+self.path.laps*2*pi])
+            self.ax.set_ylim([self.path.laps-3.14,self.path.laps+3.14])
             self.ax.set_ylabel('yaw axis (rad)')
             self.ax.set_xlabel("Time (s)")
         elif(self.plotaxis == "xy plan view"):
