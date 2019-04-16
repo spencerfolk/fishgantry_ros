@@ -1,4 +1,3 @@
-
 # from matplotlib.backends.backend_tkagg import (
 #     FigureCanvasTkAgg, NavigationToolbar2Tk)
 # # Implement the default Matplotlib key bindings.
@@ -178,7 +177,11 @@ class PersistentFish():
         print(self.bounds);
 
     def findDistance(self,bounds,x,y,psi):
-
+        
+        if(psi >= (2*math.pi)):
+            # findDistance commands only likes psi within 0-2pi so only for this instance use relative psi
+            psi = psi - math.trunc(psi/(2*math.pi))*2*math.pi
+            
         # Generate bound segments
         m = zeros((bounds.shape[0],1))
         for index in range(0,bounds.shape[0]):
@@ -299,12 +302,17 @@ class PersistentFish():
         # Determine relative positions S, psi
         self.S = S + self.U*dt
         self.psi = psi + self.Omega*dt
-        if abs(self.psi)>=2*math.pi:
-            # Keep yaw within 0 to 2pi
-            if self.psi < 0:
-                self.psi += 2*math.pi
-            if self.psi > 0:
-                self.psi -= 2*math.pi
+        
+        # laps can be found by dividing current psi by 2pi to find number of laps
+        psi_sign = self.psi/abs(self.psi)  # if negative this will return negative, positive positive.
+        self.laps = psi_sign*math.trunc(abs(self.psi)/(2*math.pi))
+        
+#        if abs(self.psi)>=2*math.pi:
+#            # Keep yaw within 0 to 2pi
+#            if self.psi < 0:
+#                self.psi += 2*math.pi
+#            if self.psi > 0:
+#                self.psi -= 2*math.pi
         
         # # Use these to transform to local coordinates
         # if ((self.x<.01) or (self.x>(self.bound_X-.01))):
@@ -513,6 +521,10 @@ class Window():
         #make button for activating elliptical path
         self.Pbutton = Button(master=self.master, text="Enable Elliptical Path", command=self.setpath)
         self.Pbutton.pack(in_=self.mside,side="top")
+        
+        #make button for activating PTW path
+#        self.Pbutton = Button(master=self.master, text="Enable PTW Path", command=self.setpath)
+#        self.Pbutton.pack(in_=self.mside,side="top")
 
         Ta=StringVar()
         Ta.set("Path Speed (mm/s)")
@@ -599,7 +611,7 @@ class Window():
             self.zmax = float(self.Ezmax.get())
             self.pmax = float(self.Epmax.get())
             self.amax = float(self.Eamax.get())
-            # self.path.updateGeometry(self.xmax/2,self.ymax/2,self.sU.get()/1000.0,self.zmax/2)
+#            self.path.updateGeometry(self.xmax/2,self.ymax/2,self.sU.get()/1000.0,self.zmax/2)
             self.path.updateGeometry(self.xmax,self.ymax,self.zmax)
             self.path.drivePersistentFish(self.delay/1000.0)
             print("updated path geometry")
@@ -609,8 +621,6 @@ class Window():
         else:
             self.Pbutton.config(text="Disable Elliptical Path")
             self.pathbutton.after(self.delay,self.pathloop)
-        
-
 
 
     def pathloop(self):
