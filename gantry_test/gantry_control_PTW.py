@@ -128,7 +128,7 @@ class PersistentFish():
     s = zeros(size(time));                  % Relative distance along curvilinear path
     psi = zeros(size(time));                % Global heading (rad)
     """
-    def __init__(self,sigma_u=0.3772,theta_u=16.73,mu_u=0.061,
+    def __init__(self,sigma_u=0.3322,theta_u=13.6849,mu_u=0.0639,
                  sigma_w=2.85,theta_w=2.74,mu_w=-0.02,sigma_o=12,fc=0):
     # ZIENK VALUES: self,sigma_u=0.059,theta_u=4.21,mu_u=0.1402, sigma_w=2.85,theta_w=2.74,mu_w=-0.02,sigma_o=12,fc=0
         self.sigma_u,self.theta_u,self.mu_u,self.sigma_w=sigma_u,theta_u,mu_u,sigma_w
