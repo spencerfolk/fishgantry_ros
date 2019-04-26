@@ -128,16 +128,18 @@ class PersistentFish():
     s = zeros(size(time));                  % Relative distance along curvilinear path
     psi = zeros(size(time));                % Global heading (rad)
     """
-    def __init__(self,sigma_u=0.3322,theta_u=13.6849,mu_u=0.0639,
-                 sigma_w=2.85,theta_w=2.74,mu_w=-0.02,sigma_o=12,fc=0):
+    def __init__(self,sigma_u=0.3322,theta_u=13.6849,mu_u=0.0639, sigma_zdot=0.0873,mu_zdot=0.0114,theta_zdot=9.6423,sigma_w=2.85,theta_w=2.74,mu_w=-0.02,sigma_o=12,fc=0):
     # ZIENK VALUES: self,sigma_u=0.059,theta_u=4.21,mu_u=0.1402, sigma_w=2.85,theta_w=2.74,mu_w=-0.02,sigma_o=12,fc=0
         self.sigma_u,self.theta_u,self.mu_u,self.sigma_w=sigma_u,theta_u,mu_u,sigma_w
         self.theta_w,self.mu_w,self.sigma_o,self.fc = theta_w,mu_w,sigma_o,fc
+        self.sigma_zdot,self.mu_zdot,self.theta_zdot = sigma_zdot,mu_zdot,theta_zdot
         self.U = 0. 
         self.Omega = 0.
         self.yawrate = 0.
-        self.x = 0. # position in middle of tank
+        self.x = 0. 
         self.y = 0.
+        self.z = 0.
+        self.zdot = 0.   # vertical speed (Vz)
         self.S = 0.
         self.psi = 0.
 
@@ -148,7 +150,6 @@ class PersistentFish():
         self.maxfreq = 2*2*pi
 
         #for swimming up and down
-        self.z = 0
         self.pitch = 0.
         self.pitchnow = 0
         self.laps = 0
@@ -167,6 +168,7 @@ class PersistentFish():
 
         self.bound_X = xmax
         self.bound_Y = ymax
+        self.bound_Z = zmax
     
         self.bounds = array([[        0,                        0                 ],
                                 [     0,                        self.bound_Y      ],
@@ -256,7 +258,7 @@ class PersistentFish():
 
         return dw
         
-    def calcDerivatives(self,Omega,U,x,y,psi):
+    def calcDerivatives(self,Omega,U,x,y,zdot,psi):
         """
         Calculates derivatives based on previous values of yaw rate (Omega) and
         forward speed (U). These stochastic differential equations also incorporate
@@ -264,6 +266,7 @@ class PersistentFish():
         """
         theta_w,mu_w,sigma_w = self.theta_w,self.mu_w,self.sigma_w
         theta_u,mu_u,sigma_u = self.theta_u,self.mu_u,self.sigma_u
+        theta_zdot,mu_zdot,sigma_zdot = self.theta_zdot,self.mu_zdot,self.sigma_zdot
         
         sigma_o = self.sigma_o
         dt = self.dt
@@ -288,18 +291,22 @@ class PersistentFish():
         # randn() should work just like randn in matlab. Normally distributed about 0 mean
         dZ = random.randn()
         dW = random.randn()
+        dB = random.randn()
         
         # Derivatives
-        Omegadot = theta_w*(mu_w+fw-Omega)*dt + fc*dZ;
-        Udot = theta_u*(mu_u-U)*dt + sigma_u*dW;
+        Omegadot = theta_w*(mu_w+fw-Omega)*dt + fc*dZ
+        Udot = theta_u*(mu_u-U)*dt + sigma_u*dW
+        zdoubledot = theta_zdot*(mu_zdot-zdot)+sigma_zdot*dB
         
-        return Omegadot, Udot, dw # return dw for detecting collision
+        return Omegadot, Udot, zdoubledot, dw # return dw for detecting collision
     
-    def updateStates(self,dt,Omega,U,x,y,psi,S):
+    def updateStates(self,dt,Omega,U,x,y,zdot,psi,S):
         self.dt = dt
-        Omegadot, Udot, dw = self.calcDerivatives(Omega,U,x,y,psi)
+        Omegadot, Udot, zdoubledot, dw = self.calcDerivatives(Omega,U,x,y,zdot,psi)
         self.Omega += Omegadot*dt
         self.U += Udot*dt
+        self.zdot += zdoubledot*dt
+        
         if(self.U<0):
             print "U can't do that!"
             self.U=0
@@ -307,8 +314,21 @@ class PersistentFish():
         if dw <= 0.005:
             self.U = 0
             
+        ##### Bound z by setting zdot = 0 when approaching boundaries
+        ##### TOP - z = 0, anything less than 0 will stop it
+        ##### BOTTOM - z = maxz anything more will stop it.
+        ##### Recall that positive zdot is down
+        if((self.z<=0.001) and (self.zdot<0)):
+            # If we're at the min depth (0) and going upwards (zdot < 0)
+            self.zdot = 0
+#        elif((self.z>=(app.zmax-0.001)) and (self.zdot>0)):  # in case bound_Z isn't updated for some reason.. pull zmax from Window class.
+        elif((self.z>=(self.bound_Z-0.001)) and (self.zdot>0)):
+            self.zdot = 0
+        
         # Determine relative positions S, psi
-        self.S = S + self.U*dt
+#        self.S += self.U*dt  ######## NOTE THIS IS JUST IN-PLANE PATH
+        #                   in-plane path     depth path
+        self.S += math.sqrt((self.U*dt)**2 + (self.zdot*dt)**2)
         self.psi = psi + self.Omega*dt
         
         # laps can be found by dividing current psi by 2pi to find number of laps
@@ -331,12 +351,13 @@ class PersistentFish():
             self.y = self.y
         else:
             self.y = y + self.U*math.sin(psi)*dt
+            
+        self.z = self.z + self.zdot*dt
 
         # self.y = y + self.U*math.sin(self.psi)*dt
         # self.x = x + self.U*math.cos(self.psi)*dt
 
         # tail+dt*self.Uuff
-        self.z = 0.
         self.pitchnow = 0.
         self.tailfreq = self.maxfreq*self.U/self.mu_u
         self.tailtheta+=self.tailfreq*dt
@@ -349,7 +370,7 @@ class PersistentFish():
     def drivePersistentFish(self,dt):
         self.dt = dt
         # Update states given current position and speed
-        self.updateStates(dt,self.Omega,self.U,self.x,self.y,self.psi,self.S)
+        self.updateStates(dt,self.Omega,self.U,self.x,self.y,self.zdot,self.psi,self.S)
 #        print(str(self.x)+'\t'+str(self.y)+'\n')
 #        print(str(self.psi)+'\n')
 
@@ -924,3 +945,4 @@ app.ser.close()
 # tkinter.mainloop()
 # # If you put root.destroy() here, it will cause an error if the window is
 # # closed with the window manager.
+
