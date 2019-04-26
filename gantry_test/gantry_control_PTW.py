@@ -128,7 +128,8 @@ class PersistentFish():
     s = zeros(size(time));                  % Relative distance along curvilinear path
     psi = zeros(size(time));                % Global heading (rad)
     """
-    def __init__(self,sigma_u=0.3322,theta_u=13.6849,mu_u=0.0639, sigma_zdot=0.0873,mu_zdot=0.0114,theta_zdot=9.6423,sigma_w=2.85,theta_w=2.74,mu_w=-0.02,sigma_o=12,fc=0):
+    def __init__(self,sigma_u=0.3322,theta_u=13.6849,mu_u=0.0639, sigma_zdot=0.0873,mu_zdot=0.0114,theta_zdot=1,sigma_w=2.85,theta_w=2.74,mu_w=-0.02,sigma_o=12,fc=0):
+#																									theta_zdot = 9.6423
     # ZIENK VALUES: self,sigma_u=0.059,theta_u=4.21,mu_u=0.1402, sigma_w=2.85,theta_w=2.74,mu_w=-0.02,sigma_o=12,fc=0
         self.sigma_u,self.theta_u,self.mu_u,self.sigma_w=sigma_u,theta_u,mu_u,sigma_w
         self.theta_w,self.mu_w,self.sigma_o,self.fc = theta_w,mu_w,sigma_o,fc
@@ -280,7 +281,7 @@ class PersistentFish():
             # print "fc= "+str(fc)
         # Compute wall force
         dw = PersistentFish.findDistance(self,self.bounds,x,y,psi);
-        fw = .25*math.exp(-0.11*dw)
+        fw = .025*math.exp(-0.11*dw)
         
         if Omega >= 0:
             # Repulsive behavior, depending on sign of previous turning speed 
@@ -375,7 +376,7 @@ class PersistentFish():
 #        print(str(self.psi)+'\n')
 
         # return self.Omega,self.U,self.x,self.y,self.psi,self.S
-        return self.x,self.y,self.z,self.pitch,self.psi,self.tailangle
+        return self.x,self.y,-self.z,self.pitch,self.psi,self.tailangle
 
 
 
