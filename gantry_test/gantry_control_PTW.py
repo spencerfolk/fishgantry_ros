@@ -312,8 +312,8 @@ class PersistentFish():
             print "U can't do that!"
             self.U=0
         
-        if dw <= 0.005:
-            self.U = 0
+        # if dw <= 0.005:
+        #     self.U = 0
             
         ##### Bound z by setting zdot = 0 when approaching boundaries
         ##### TOP - z = 0, anything less than 0 will stop it
@@ -342,16 +342,51 @@ class PersistentFish():
 #                self.psi += 2*math.pi
 #            if self.psi > 0:
 #                self.psi -= 2*math.pi
-        
-        # Use these to transform to local coordinates
-        if ((self.x<.01) or (self.x>(self.bound_X-.01))):
-            self.x = self.x
+
+        if(self.x<.01):
+            if(self.U*cos(self.psi)<=0):
+                print"bounding x"
+                self.x=self.x
+            else:
+                self.x = x + self.U*math.cos(psi)*dt
         else:
             self.x = x + self.U*math.cos(psi)*dt
-        if (  (self.y<.01) or (self.y>(self.bound_Y - .01))):
-            self.y = self.y
+        if(self.x>(self.bound_X-.01)):
+            if(self.U*cos(self.psi)>=0):
+                print "bounding x for bigbound"
+                self.x=self.x
+            else:
+                self.x = self.x + self.U*math.cos(psi)*dt
         else:
-            self.y = y + self.U*math.sin(psi)*dt
+            self.x = self.x + self.U*math.cos(psi)*dt
+
+        if(self.y<.01):
+            if(self.U*sin(self.psi)<=0):
+                print "bounding y"
+                self.y=self.y
+            else:
+                self.y = self.y + self.U*math.sin(psi)*dt
+        else:
+            self.y = self.y + self.U*math.sin(psi)*dt
+        if(self.y>(self.bound_Y-.01)):
+            if(self.U*sin(self.psi)>=0):
+                self.y=self.y
+                print "bounding y for bigbound"
+            else:
+                self.y = self.y + self.U*math.sin(psi)*dt
+        else:
+            self.y = self.y + self.U*math.sin(psi)*dt
+        
+        # # Use these to transform to local coordinates
+        # if ((self.x<.01) or (self.x>(self.bound_X-.01))):
+        #     if(self.U*)
+        #     self.x = self.x
+        # else:
+        #     self.x = x + self.U*math.cos(psi)*dt
+        # if (  (self.y<.01) or (self.y>(self.bound_Y - .01))):
+        #     self.y = self.y
+        # else:
+        #     self.y = self.y + self.U*math.sin(psi)*dt
             
         self.z = self.z + self.zdot*dt
 
@@ -363,7 +398,7 @@ class PersistentFish():
         self.tailfreq = self.maxfreq*self.U/self.mu_u
         self.tailtheta+=self.tailfreq*dt
         self.tailangle = self.maxamp*sin(self.tailtheta) - 2*self.maxamp*self.yawrate
-        print self.psi
+        #print self.psi
         return self.x, self.y, self.psi, self.z, self.pitchnow, self.tailangle 
         #return Omega, U, S, psi, x, y
 
@@ -658,8 +693,9 @@ class Window():
         #if path is active, update the x and y commands
         #x,y,yaw,z,pitch,tail = self.path.update(self.delay/1000.0,self.sU.get()/1000.0)
         x,y,z,pitch,yaw,tail = self.path.drivePersistentFish(self.delay/1000.0)
+        print self.path.U
         relyaw = yaw - self.path.laps*2*pi
-        print "relative yaw (pathloop): "+str(relyaw)
+        # print "relative yaw (pathloop): "+str(relyaw)
         #print(x,y,yaw)
         #now set the x and y sliders accordingly
         self.sx.set(x*self.sliderscale/self.xmax)
