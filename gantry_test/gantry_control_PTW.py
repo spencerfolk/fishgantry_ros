@@ -343,39 +343,74 @@ class PersistentFish():
 #            if self.psi > 0:
 #                self.psi -= 2*math.pi
 
-        if(self.x<.01):
-            if(self.U*cos(self.psi)<=0):
-                print"bounding x"
-                self.x=self.x
-            else:
-                self.x = x + self.U*math.cos(psi)*dt
+################## SF WALL LIMITS ###########################################
+        if ((self.x <= 0.01) or (self.x >= self.bound_X - 0.01)):
+            # If the fish is outside left/right bounds
+            if((self.x<=0.01) and (self.U*math.cos(self.psi) <= 0)):
+                # If it's on the left wall and moving left
+                self.x = self.x
+            elif((self.x<=0.01) and (self.U*math.cos(self.psi)> 0)):
+                self.x = self.x + self.U*math.cos(self.psi)*dt
+                
+            if((self.x>=(self.bound_X - 0.01)) and (self.U*math.cos(self.psi) >= 0)):
+                # If it's on the right wall and moving right
+                self.x = self.x
+            elif((self.x>=(self.bound_X - 0.01)) and (self.U*math.cos(self.psi) < 0)):
+                self.x = self.x + self.U*math.cos(self.psi)*dt
+        else: 
+            self.x = self.x + self.U*math.cos(self.psi)*dt
+            
+        if ((self.y <= 0.01) or (self.y >= self.bound_Y - 0.01)):   
+            # If it's outside top/bottom bounds
+            if((self.y<=0.01) and (self.U*math.sin(self.psi) <= 0)):
+                # If it's at bottom wall and moving down
+                self.y = self.y
+            elif((self.y<=0.01) and (self.U*math.sin(self.psi) > 0)):
+                self.y = self.y + self.U*math.sin(self.psi)*dt
+            
+            if((self.y>=(self.bound_Y - 0.01)) and (self.U*math.sin(self.psi) >= 0)):
+                # If it's at top wall and moving up
+                self.y = self.y
+            elif((self.y >= (self.bound_Y - 0.01)) and (self.U*math.sin(self.psi) < 0)):
+                self.y = self.y + self.U*math.sin(self.psi)*dt
         else:
-            self.x = x + self.U*math.cos(psi)*dt
-        if(self.x>(self.bound_X-.01)):
-            if(self.U*cos(self.psi)>=0):
-                print "bounding x for bigbound"
-                self.x=self.x
-            else:
-                self.x = self.x + self.U*math.cos(psi)*dt
-        else:
-            self.x = self.x + self.U*math.cos(psi)*dt
+            self.y = self.y + self.U*math.sin(self.psi)*dt
 
-        if(self.y<.01):
-            if(self.U*sin(self.psi)<=0):
-                print "bounding y"
-                self.y=self.y
-            else:
-                self.y = self.y + self.U*math.sin(psi)*dt
-        else:
-            self.y = self.y + self.U*math.sin(psi)*dt
-        if(self.y>(self.bound_Y-.01)):
-            if(self.U*sin(self.psi)>=0):
-                self.y=self.y
-                print "bounding y for bigbound"
-            else:
-                self.y = self.y + self.U*math.sin(psi)*dt
-        else:
-            self.y = self.y + self.U*math.sin(psi)*dt
+################### AAB WALL LIMITS #########################################
+#         if(self.x<.01):
+#             if(self.U*cos(self.psi)<=0):
+#                 print"bounding x"
+#                 self.x=self.x
+#             else:
+#                 self.x = x + self.U*math.cos(psi)*dt
+#         else:
+#             self.x = x + self.U*math.cos(psi)*dt
+#         if(self.x>(self.bound_X-.01)):
+#             if(self.U*cos(self.psi)>=0):
+#                 print "bounding x for bigbound"
+#                 self.x=self.x
+#             else:
+#                 self.x = self.x + self.U*math.cos(psi)*dt
+#         else:
+#             self.x = self.x + self.U*math.cos(psi)*dt
+
+#         if(self.y<.01):
+#             if(self.U*sin(self.psi)<=0):
+#                 print "bounding y"
+#                 self.y=self.y
+#             else:
+#                 self.y = self.y + self.U*math.sin(psi)*dt
+#         else:
+#             self.y = self.y + self.U*math.sin(psi)*dt
+#         if(self.y>(self.bound_Y-.01)):
+#             if(self.U*sin(self.psi)>=0):
+#                 self.y=self.y
+#                 print "bounding y for bigbound"
+#             else:
+#                 self.y = self.y + self.U*math.sin(psi)*dt
+#         else:
+#             self.y = self.y + self.U*math.sin(psi)*dt
+############################################################################
         
         # # Use these to transform to local coordinates
         # if ((self.x<.01) or (self.x>(self.bound_X-.01))):
