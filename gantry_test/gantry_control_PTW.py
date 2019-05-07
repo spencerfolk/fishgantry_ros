@@ -177,8 +177,9 @@ class PersistentFish():
                                 [     self.bound_X    ,         0                 ]])
 
         print("updateGeometry successful - ")
-        print("Bounds = \n")
-        print(self.bounds);
+        # print("Bounds = \n")
+        # print(self.bounds);
+
 
     def findDistance(self,bounds,x,y,psi):
         
@@ -448,7 +449,57 @@ class PersistentFish():
         # return self.Omega,self.U,self.x,self.y,self.psi,self.S
         return self.x,self.y,-self.z,self.pitch,self.psi,self.tailangle
 
+class MarkovChain(PersistentFish):
+	# Inherits a persistentfish and runs a 2-state Markov chain with time-dependent transition matrices.
+	def __init__(self, tau_active = 4.5846, tau_inactive = 1.7966):
+		# self.tau_active = 4.5846
+		# self.tau_inactive = 1.7966
+		self.tau_active = 5
+		self.tau_inactive = 500
+		# Initialize states, transition names and their conditions, etc.
+		self.elapsed = 0.
 
+		self.states = ["Active","Inactive"]
+		#						# A - Active , I - Inactive , ex: AI = from Active to Inactive
+		self.transitionNames = [["AA","AI"],["II","IA"]]
+
+		self.transitionMatrix = self.updateTransitionMatrix()  # Should return [[1,0],[1,0]]
+		print self.transitionMatrix[0]
+
+		# Check transition matrix to make sure we're doin ok. Each row should add to 1
+		if ((sum(self.transitionMatrix[0]) == 1) and (sum(self.transitionMatrix[1]) == 1)):
+			print "Markov Chain established, initial transition matrix:"
+		else:
+			print "Markov Chain initialized improperly, try again"
+			print self.transitionMatrix
+
+		self.statusNow = "Active"
+
+	def updateTransitionMatrix(self):
+		# inputting dt will compute transition/probability matrix (which is fed into selecting which state to go into)
+		# Structure of transitions:  [["AA","AI"],["II","IA"]]
+		# Active = A, Inactive = I
+		self.transitionMatrix = [[math.exp(-self.elapsed/self.tau_active),(1-math.exp(-self.elapsed/self.tau_active))],[math.exp(-self.elapsed/self.tau_inactive),(1-math.exp(-self.elapsed/self.tau_inactive))]]
+		return self.transitionMatrix
+
+	def updateCurrentState(self,time_step):
+		# Increment elapsed time and update transition matrix
+		self.elapsed += time_step  # time step used just to avoid conflict of attributes.
+		self.transitionMatrix = self.updateTransitionMatrix()
+		if self.statusNow == "Active":
+			change = random.choice(self.transitionNames[0],replace=True,p=self.transitionMatrix[0])
+			if change == "AI":
+				self.statusNow = "Inactive"
+				print "State changed from Active to Inactive, duration of last state = "
+				print self.elapsed
+				self.elapsed = 0  # reset elapsed
+		if self.statusNow == "Inactive":
+			change = random.choice(self.transitionNames[1],replace=True,p=self.transitionMatrix[1])
+			if change == "IA":
+				self.statusNow = "Active"
+				print "State changed from Inactive to Active, duration of last state = "
+				print self.elapsed
+				self.elapsed = 0  # reset elapsed
 
 class Window():
     def __init__(self, master=None):
@@ -518,6 +569,8 @@ class Window():
 
         self.path = PersistentFish()
         self.path.updateGeometry(self.xmax,self.ymax,self.zmax)
+
+        self.markov = MarkovChain(self.path)
 
         #initialize the window
         self.init_window()
@@ -620,7 +673,7 @@ class Window():
         self.enbox.pack(in_=self.mside,side="top")
 
         #make button for activating elliptical path
-        self.Pbutton = Button(master=self.master, text="Enable Elliptical Path", command=self.setpath)
+        self.Pbutton = Button(master=self.master, text="Enable PTW Path", command=self.setpath)
         self.Pbutton.pack(in_=self.mside,side="top")
         
         #make button for activating PTW path
@@ -646,7 +699,9 @@ class Window():
         
         #set up the canvas for the figure
         self.canvas = FigureCanvasTkAgg(self.fig,master=self.mside)
-        self.canvas.draw()
+        self.canvas.draw()        
+        self.S = 0.
+
         self.canvas.get_tk_widget().pack(in_=self.mside,side="top")
         self.toolbar = NavigationToolbar2Tk(self.canvas, self.mside)
         self.toolbar.update()
@@ -718,17 +773,26 @@ class Window():
             print("updated path geometry")
         #update the path x and y positions
         if(not self.pathActive):
-            self.Pbutton.config(text="Enable Elliptical Path")
+            self.Pbutton.config(text="Enable PTW Path")
         else:
-            self.Pbutton.config(text="Disable Elliptical Path")
+            self.Pbutton.config(text="Disable PTW Path")
             self.pathbutton.after(self.delay,self.pathloop)
 
 
     def pathloop(self):
         #if path is active, update the x and y commands
         #x,y,yaw,z,pitch,tail = self.path.update(self.delay/1000.0,self.sU.get()/1000.0)
-        x,y,z,pitch,yaw,tail = self.path.drivePersistentFish(self.delay/1000.0)
-        print self.path.U
+
+        # First run Markov Chain to decide what state we'll be in.
+        self.markov.updateCurrentState(self.delay/1000.0)
+
+        if (self.markov.statusNow == "Active"):
+        	# If we're active let's run the fish!!!
+        	x,y,z,pitch,yaw,tail = self.path.drivePersistentFish(self.delay/1000.0)
+        elif (self.markov.statusNow == "Inactive"):
+        	# Else let it sit (or in the future make it do coasting behavior or something cool)
+        	x,y,z,pitch,yaw,tail = self.path.x,self.path.y,self.path.z,self.path.pitch,self.path.psi,self.path.tailangle
+        # print self.path.U
         relyaw = yaw - self.path.laps*2*pi
         # print "relative yaw (pathloop): "+str(relyaw)
         #print(x,y,yaw)
