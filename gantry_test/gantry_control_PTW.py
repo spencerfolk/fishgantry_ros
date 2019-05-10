@@ -134,6 +134,12 @@ class PersistentFish():
         self.sigma_u,self.theta_u,self.mu_u,self.sigma_w=sigma_u,theta_u,mu_u,sigma_w
         self.theta_w,self.mu_w,self.sigma_o,self.fc = theta_w,mu_w,sigma_o,fc
         self.sigma_zdot,self.mu_zdot,self.theta_zdot = sigma_zdot,mu_zdot,theta_zdot
+        
+        # Save these values for Markov switching
+        self.sigma_u_save,self.theta_u_save,self.mu_u_save,self.sigma_w_save=sigma_u,theta_u,mu_u,sigma_w
+        self.theta_w_save,self.mu_w_save,self.sigma_o_save,self.fc_save = theta_w,mu_w,sigma_o,fc
+        self.sigma_zdot_save,self.mu_zdot_save,self.theta_zdot_save = sigma_zdot,mu_zdot,theta_zdot
+        
         self.U = 0. 
         self.Omega = 0.
         self.yawrate = 0.
@@ -463,43 +469,56 @@ class MarkovChain(PersistentFish):
 		#						# A - Active , I - Inactive , ex: AI = from Active to Inactive
 		self.transitionNames = [["AA","AI"],["II","IA"]]
 
-		self.transitionMatrix = self.updateTransitionMatrix()  # Should return [[1,0],[1,0]]
-		print self.transitionMatrix[0]
+		self.transitionMatrix = [[0.8073,0.1927],[0.7537,0.2463]]
 
 		# Check transition matrix to make sure we're doin ok. Each row should add to 1
 		if ((sum(self.transitionMatrix[0]) == 1) and (sum(self.transitionMatrix[1]) == 1)):
-			print "Markov Chain established, initial transition matrix:"
+			print "Markov Chain established"
 		else:
 			print "Markov Chain initialized improperly, try again"
 			print self.transitionMatrix
 
 		self.statusNow = "Active"
 
-	def updateTransitionMatrix(self):
-		# inputting dt will compute transition/probability matrix (which is fed into selecting which state to go into)
-		# Structure of transitions:  [["AA","AI"],["II","IA"]]
-		# Active = A, Inactive = I
-		self.transitionMatrix = [[math.exp(-self.elapsed/self.tau_active),(1-math.exp(-self.elapsed/self.tau_active))],[math.exp(-self.elapsed/self.tau_inactive),(1-math.exp(-self.elapsed/self.tau_inactive))]]
-		return self.transitionMatrix
+#	def updateTransitionMatrix(self):
+#		# inputting dt will compute transition/probability matrix (which is fed into selecting which state to go into)
+#		# Structure of transitions:  [["AA","AI"],["II","IA"]]
+#		# Active = A, Inactive = I
+#		self.transitionMatrix = [[math.exp(-self.elapsed/self.tau_active),(1-math.exp(-self.elapsed/self.tau_active))],[math.exp(-self.elapsed/self.tau_inactive),(1-math.exp(-self.elapsed/self.tau_inactive))]]
+#		return self.transitionMatrix
 
-	def updateCurrentState(self,time_step):
-		# Increment elapsed time and update transition matrix
-		self.elapsed += time_step  # time step used just to avoid conflict of attributes.
-		self.transitionMatrix = self.updateTransitionMatrix()
+	def updateCurrentState(self):
+#		self.transitionMatrix = self.updateTransitionMatrix()
 		if self.statusNow == "Active":
 			change = random.choice(self.transitionNames[0],replace=True,p=self.transitionMatrix[0])
 			if change == "AI":
 				self.statusNow = "Inactive"
+             self.setInactive()
 				print "State changed from Active to Inactive, duration of last state = "
-				print self.elapsed
-				self.elapsed = 0  # reset elapsed
+#				print self.elapsed
+#				self.elapsed = 0  # reset elapsed
 		if self.statusNow == "Inactive":
 			change = random.choice(self.transitionNames[1],replace=True,p=self.transitionMatrix[1])
 			if change == "IA":
 				self.statusNow = "Active"
+             self.setActive()
 				print "State changed from Inactive to Active, duration of last state = "
-				print self.elapsed
-				self.elapsed = 0  # reset elapsed
+#				print self.elapsed
+#				self.elapsed = 0  # reset elapsed
+                
+    def setActive(self):
+        # Use temp values
+        path.sigma_u,path.theta_u,path.mu_u,path.sigma_w= path.sigma_u_save,path.theta_u_save,path.mu_u_save,path.sigma_w_save
+        path.theta_w,path.mu_w,path.sigma_o,path.fc = path.theta_w_save,path.mu_w_save,path.sigma_o_save,path.fc_save
+        path.sigma_zdot,path.mu_zdot,path.theta_zdot = path.sigma_zdot_save,path.mu_zdot_save,path.theta_zdot_save
+        
+    def setInactive(self):
+        # Set inactive behavior
+        
+        # 0 for now so that it doesn't do anything
+        path.sigma_u,path.theta_u,path.mu_u,path.sigma_w= 0.00001, 0.00001 , 0.00001 , 0.00001
+        path.theta_w,path.mu_w,path.sigma_o,path.fc = 0.00001, 0.00001, 0.0001, 0.00001
+        path.sigma_zdot,path.mu_zdot,path.theta_zdot = 0.00001, 0.00001, 0.00001
 
 class Window():
     def __init__(self, master=None):
@@ -571,6 +590,11 @@ class Window():
         self.path.updateGeometry(self.xmax,self.ymax,self.zmax)
 
         self.markov = MarkovChain(self.path)
+        
+        # Timer for markov
+        self.markov_timer = 0   # timer status bit
+        self.markov_elapsed = 0 # elapsed time
+        self.markov_timer_thres = 500  # timer threshold
 
         #initialize the window
         self.init_window()
@@ -782,17 +806,16 @@ class Window():
     def pathloop(self):
         #if path is active, update the x and y commands
         #x,y,yaw,z,pitch,tail = self.path.update(self.delay/1000.0,self.sU.get()/1000.0)
-
+        
         # First run Markov Chain to decide what state we'll be in.
-        self.markov.updateCurrentState(self.delay/1000.0)
+        self.markov_elapsed += self.delay # recall that self.delay is in ms
+        
+        if (self.markov_elapsed >= self.markov_timer_thres):
+            self.markov.updateCurrentState(self.delay/1000.0)
+            self.markov_elapsed = 0
 
-        if (self.markov.statusNow == "Active"):
-        	# If we're active let's run the fish!!!
-        	x,y,z,pitch,yaw,tail = self.path.drivePersistentFish(self.delay/1000.0)
-        elif (self.markov.statusNow == "Inactive"):
-        	# Else let it sit (or in the future make it do coasting behavior or something cool)
-        	x,y,z,pitch,yaw,tail = self.path.x,self.path.y,self.path.z,self.path.pitch,self.path.psi,self.path.tailangle
-        # print self.path.U
+        x,y,z,pitch,yaw,tail = self.path.drivePersistentFish(self.delay/1000.0)
+
         relyaw = yaw - self.path.laps*2*pi
         # print "relative yaw (pathloop): "+str(relyaw)
         #print(x,y,yaw)
