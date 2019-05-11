@@ -316,7 +316,7 @@ class PersistentFish():
         self.zdot += zdoubledot*dt
         
         if(self.U<0):
-            print "U can't do that!"
+            # print "U can't do that!"
             self.U=0
         
         # if dw <= 0.005:
@@ -457,11 +457,11 @@ class PersistentFish():
 
 class MarkovChain(PersistentFish):
 	# Inherits a persistentfish and runs a 2-state Markov chain with time-dependent transition matrices.
-	def __init__(self, tau_active = 4.5846, tau_inactive = 1.7966):
+	def __init__(self):
 		# self.tau_active = 4.5846
 		# self.tau_inactive = 1.7966
-		self.tau_active = 5
-		self.tau_inactive = 500
+		PersistentFish.__init__(self)  # Initialize markov as a child of PersistentFish
+
 		# Initialize states, transition names and their conditions, etc.
 		self.elapsed = 0.
 
@@ -493,32 +493,34 @@ class MarkovChain(PersistentFish):
 			change = random.choice(self.transitionNames[0],replace=True,p=self.transitionMatrix[0])
 			if change == "AI":
 				self.statusNow = "Inactive"
-             self.setInactive()
-				print "State changed from Active to Inactive, duration of last state = "
+				self.setInactive()
+				print "State changed from Active to Inactive"
 #				print self.elapsed
 #				self.elapsed = 0  # reset elapsed
 		if self.statusNow == "Inactive":
 			change = random.choice(self.transitionNames[1],replace=True,p=self.transitionMatrix[1])
 			if change == "IA":
 				self.statusNow = "Active"
-             self.setActive()
-				print "State changed from Inactive to Active, duration of last state = "
+				self.setActive()
+				print "State changed from Inactive to Active"
 #				print self.elapsed
 #				self.elapsed = 0  # reset elapsed
                 
-    def setActive(self):
+	def setActive(self):
         # Use temp values
-        path.sigma_u,path.theta_u,path.mu_u,path.sigma_w= path.sigma_u_save,path.theta_u_save,path.mu_u_save,path.sigma_w_save
-        path.theta_w,path.mu_w,path.sigma_o,path.fc = path.theta_w_save,path.mu_w_save,path.sigma_o_save,path.fc_save
-        path.sigma_zdot,path.mu_zdot,path.theta_zdot = path.sigma_zdot_save,path.mu_zdot_save,path.theta_zdot_save
+		self.sigma_u, self.theta_u, self.mu_u, self.sigma_w = self.sigma_u_save, self.theta_u_save, self.mu_u_save, self.sigma_w_save
+		self.theta_w, self.mu_w, self.sigma_o, self.fc =  self.theta_w_save, self.mu_w_save, self.sigma_o_save, self.fc_save
+		self.sigma_zdot, self.mu_zdot, self.theta_zdot =  self.sigma_zdot_save, self.mu_zdot_save, self.theta_zdot_save
         
-    def setInactive(self):
+	def setInactive(self):
         # Set inactive behavior
         
         # 0 for now so that it doesn't do anything
-        path.sigma_u,path.theta_u,path.mu_u,path.sigma_w= 0.00001, 0.00001 , 0.00001 , 0.00001
-        path.theta_w,path.mu_w,path.sigma_o,path.fc = 0.00001, 0.00001, 0.0001, 0.00001
-        path.sigma_zdot,path.mu_zdot,path.theta_zdot = 0.00001, 0.00001, 0.00001
+		self.sigma_u, self.theta_u, self.mu_u, self.sigma_w= 0.00001, 0.00001 , 0.00001 , 0.00001
+		self.theta_w, self.mu_w, self.sigma_o, self.fc = 0.00001, 0.00001, 0.0001, 0.00001
+		self.sigma_zdot, self.mu_zdot, self.theta_zdot = 0.00001, 0.00001, 0.00001
+
+		self.U = 0 # stop the fish
 
 class Window():
     def __init__(self, master=None):
@@ -586,10 +588,11 @@ class Window():
         self.pathActive = False
         self.pathWasActive = False
 
-        self.path = PersistentFish()
-        self.path.updateGeometry(self.xmax,self.ymax,self.zmax)
+        # self.path = PersistentFish()
+        # self.path.updateGeometry(self.xmax,self.ymax,self.zmax)
 
-        self.markov = MarkovChain(self.path)
+        self.path = MarkovChain()
+        self.path.updateGeometry(self.xmax,self.ymax,self.zmax)
         
         # Timer for markov
         self.markov_timer = 0   # timer status bit
@@ -811,7 +814,7 @@ class Window():
         self.markov_elapsed += self.delay # recall that self.delay is in ms
         
         if (self.markov_elapsed >= self.markov_timer_thres):
-            self.markov.updateCurrentState(self.delay/1000.0)
+            self.path.updateCurrentState()
             self.markov_elapsed = 0
 
         x,y,z,pitch,yaw,tail = self.path.drivePersistentFish(self.delay/1000.0)
