@@ -303,17 +303,21 @@ class PersistentFish():
         dB = random.randn()
         
         # Derivatives
-#         Omegadot = theta_w*(mu_w+fw-Omega)*dt + sigma_w*dZ
-	Omegadot = sigma_w*dZ
+        Omegadot = theta_w*(mu_w+fw-Omega)*dt + sigma_w*dZ
+        # Omegadot = sigma_w*dZ
         Udot = theta_u*(mu_u-U)*dt + fc*dW
         zdoubledot = theta_zdot*(mu_zdot-zdot)+sigma_zdot*dB
         
         return Omegadot, Udot, zdoubledot, dw # return dw for detecting collision
     
-    def updateStates(self,dt,Omega,U,x,y,zdot,psi,S):
+    def updateStates(self,dt,Omega,U,x,y,zdot,psi,S,state=1):
         self.dt = dt
         Omegadot, Udot, zdoubledot, dw = self.calcDerivatives(Omega,U,x,y,zdot,psi)
         self.Omega += Omegadot*dt
+        # if state == 1:
+        #     self.U += Udot*dt
+        # else:
+        #     self.U = 0
         self.U += Udot*dt
         self.zdot += zdoubledot*dt
         
@@ -447,10 +451,10 @@ class PersistentFish():
         #return Omega, U, S, psi, x, y
 
     
-    def drivePersistentFish(self,dt):
+    def drivePersistentFish(self,dt,state=1):
         self.dt = dt
         # Update states given current position and speed
-        self.updateStates(dt,self.Omega,self.U,self.x,self.y,self.zdot,self.psi,self.S)
+        self.updateStates(dt,self.Omega,self.U,self.x,self.y,self.zdot,self.psi,self.S,state)
 #        print(str(self.x)+'\t'+str(self.y)+'\n')
 #        print(str(self.psi)+'\n')
 
@@ -518,8 +522,8 @@ class MarkovChain(PersistentFish):
         # Set inactive behavior
         
         # 0 for now so that it doesn't do anything
-		self.sigma_u, self.theta_u, self.mu_u, self.sigma_w= 0.00001, 0.00001 , 0.00001 , 0.00001
-		self.theta_w, self.mu_w, self.sigma_o, self.fc = 0.00001, 0.00001, 0.0001, 0.00001
+		self.sigma_u, self.theta_u, self.mu_u, self.sigma_w= 0.00001, self.sigma_u_save, 0.00001 , 0.00001
+		self.theta_w, self.mu_w, self.sigma_o, self.fc = 10*self.theta_w_save, 0.00001, 0.0001, 0.00001
 		self.sigma_zdot, self.mu_zdot, self.theta_zdot = 0.00001, 0.00001, 0.00001
 
 		self.U = 0 # stop the fish
@@ -746,7 +750,7 @@ class Window():
         l=Label(self.master, textvariable=s, height=1)
         l.pack(in_=self.mside,side="left")
         SV = StringVar()
-        SV.set("0.4")
+        SV.set("0.3")
         self.Exmax =Entry(self.master,textvariable=SV,width=5)
         self.Exmax.pack(in_=self.mside,side="left")
 
@@ -755,7 +759,7 @@ class Window():
         l=Label(self.master, textvariable=s, height=1)
         l.pack(in_=self.mside,side="left")
         SV = StringVar()
-        SV.set("0.15")
+        SV.set("0.05")
         self.Eymax =Entry(self.master,textvariable=SV,width=5)
         self.Eymax.pack(in_=self.mside,side="left")
 
@@ -819,7 +823,10 @@ class Window():
             self.path.updateCurrentState()
             self.markov_elapsed = 0
 
-        x,y,z,pitch,yaw,tail = self.path.drivePersistentFish(self.delay/1000.0)
+        if self.path.statusNow == "Active":
+            x,y,z,pitch,yaw,tail = self.path.drivePersistentFish(self.delay/1000.0,1)
+        elif self.path.statusNow == "Inactive":
+            x,y,z,pitch,yaw,tail = self.path.drivePersistentFish(self.delay/1000.0,0)
 
         relyaw = yaw - self.path.laps*2*pi
         # print "relative yaw (pathloop): "+str(relyaw)
@@ -901,7 +908,10 @@ class Window():
             splitline = stripline.split('\t')
             #if we have enough numbers and not a weird partial line:
             if len(splitline)==6:
-                ardt,f1,f2,f3,f4,f5 = float(splitline[0]),float(splitline[1]),float(splitline[2]),float(splitline[3]),float(splitline[4]),float(splitline[5])
+                try: 
+                    ardt,f1,f2,f3,f4,f5 = float(splitline[0]),float(splitline[1]),float(splitline[2]),float(splitline[3]),float(splitline[4]),float(splitline[5])
+                except:
+                    print "overflow"
                 #if we have fewer points than the buffer size (we haven't been running for long):
                 # print "got:     " + str(ardt)+","+str(f1)+","+str(f2)+","+str(f3)+","+str(f4)+","+str(f5)
         else:
