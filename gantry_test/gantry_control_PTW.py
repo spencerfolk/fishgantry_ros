@@ -149,6 +149,7 @@ class PersistentFish():
         self.zdot = 0.   # vertical speed (Vz)
         self.S = 0.
         self.psi = 0.
+        self.Udot = 0
 
         self.theta = arange(0,2*pi,.01) #range of thetas
         self.tailtheta = 0
@@ -163,6 +164,8 @@ class PersistentFish():
         self.f = None
         self.maxamp = 1.5
         self.maxspeed = 0.1
+
+        self.tailfreq_tau = 0.5
         # xmax = 1
         # ymax = 1
         # zmax = 1
@@ -306,6 +309,7 @@ class PersistentFish():
         Omegadot = theta_w*(mu_w+fw-Omega)*dt + sigma_w*dZ
         # Omegadot = sigma_w*dZ
         Udot = theta_u*(mu_u-U)*dt + fc*dW
+        self.Udot = Udot
         zdoubledot = theta_zdot*(mu_zdot-zdot)+sigma_zdot*dB
         
         return Omegadot, Udot, zdoubledot, dw # return dw for detecting collision
@@ -443,7 +447,11 @@ class PersistentFish():
 
         # tail+dt*self.Uuff
         self.pitchnow = 0.
-        self.tailfreq = self.maxfreq*self.U/self.mu_u
+        if(self.Udot>0):
+            tailfreq_new = self.maxfreq*self.Udot/(self.sigma_u)*1.5
+        else:
+            tailfreq_new = 0
+        self.tailfreq = (1-dt/self.tailfreq_tau)*self.tailfreq+dt/self.tailfreq_tau*tailfreq_new
         self.tailtheta+=self.tailfreq*dt
         self.tailangle = self.maxamp*sin(self.tailtheta) - 2*self.maxamp*self.yawrate
         #print self.psi
