@@ -128,8 +128,8 @@ class PersistentFish():
     s = zeros(size(time));                  % Relative distance along curvilinear path
     psi = zeros(size(time));                % Global heading (rad)
     """
-    def __init__(self,sigma_u=0.3322,theta_u=13.6849,mu_u=0.0639, sigma_zdot=0.0873,mu_zdot=0.0114,theta_zdot=1,sigma_w=2.85,theta_w=2.74,mu_w=-0.02,sigma_o=12,fc=0):
-#																									theta_zdot = 9.6423
+    def __init__(self,sigma_u=0.3034,theta_u=14.6096,mu_u=0.0757, sigma_zdot=0.0873,mu_zdot=0.0114,theta_zdot=1,sigma_w=2.85,theta_w=2.74,mu_w=-0.02,sigma_o=0.1145,fc=0):
+# sigma_u=0.3322,theta_u=13.6849,mu_u=0.0639, sigma_zdot=0.0873,mu_zdot=0.0114,theta_zdot=1,sigma_w=2.85,theta_w=2.74,mu_w=-0.02,sigma_o=12,fc=0																									theta_zdot = 9.6423
     # ZIENK VALUES: self,sigma_u=0.059,theta_u=4.21,mu_u=0.1402, sigma_w=2.85,theta_w=2.74,mu_w=-0.02,sigma_o=12,fc=0
         self.sigma_u,self.theta_u,self.mu_u,self.sigma_w=sigma_u,theta_u,mu_u,sigma_w
         self.theta_w,self.mu_w,self.sigma_o,self.fc = theta_w,mu_w,sigma_o,fc
@@ -280,12 +280,13 @@ class PersistentFish():
         dt = self.dt
         
         # Compute coupling force fc
-        if(U<mu_u):
-            fc=sigma_w
-        else:
-            fc=sigma_w
-            # fc = sigma_o*(2*sigma_o/sigma_w)**(-U/mu_u)
-            # print "fc= "+str(fc)
+#         if(U<mu_u):
+#             fc=sigma_w
+#         else:
+#             fc=sigma_w
+        fc = sigma_o*(2*sigma_o/sigma_zdot)**(-U/mu_u)
+	
+	
         # Compute wall force
         dw = PersistentFish.findDistance(self,self.bounds,x,y,psi);
         fw = .025*math.exp(-0.11*dw)
@@ -302,8 +303,9 @@ class PersistentFish():
         dB = random.randn()
         
         # Derivatives
-        Omegadot = theta_w*(mu_w+fw-Omega)*dt + fc*dZ
-        Udot = theta_u*(mu_u-U)*dt + sigma_u*dW
+#         Omegadot = theta_w*(mu_w+fw-Omega)*dt + sigma_w*dZ
+	Omegadot = sigma_w*dZ
+        Udot = theta_u*(mu_u-U)*dt + fc*dW
         zdoubledot = theta_zdot*(mu_zdot-zdot)+sigma_zdot*dB
         
         return Omegadot, Udot, zdoubledot, dw # return dw for detecting collision
