@@ -166,6 +166,7 @@ class PersistentFish():
         self.maxspeed = 0.1
 
         self.tailfreq_tau = 0.5
+        self.pitchtau = 1.0
         # xmax = 1
         # ymax = 1
         # zmax = 1
@@ -292,7 +293,7 @@ class PersistentFish():
 	
         # Compute wall force
         dw = PersistentFish.findDistance(self,self.bounds,x,y,psi);
-        fw = .025*math.exp(-0.11*dw)
+        fw = 1.09*math.exp(-2.05*dw)
         
         if Omega >= 0:
             # Repulsive behavior, depending on sign of previous turning speed 
@@ -306,7 +307,8 @@ class PersistentFish():
         dB = random.randn()
         
         # Derivatives
-        Omegadot = theta_w*(mu_w+fw-Omega)*dt + sigma_w*dZ
+        # Omegadot = theta_w*(mu_w+fw-Omega)*dt + sigma_w*dZ
+        Omegadot = theta_w*(mu_w-Omega)*dt + sigma_w*dZ
         # Omegadot = sigma_w*dZ
         Udot = theta_u*(mu_u-U)*dt + fc*dW
         self.Udot = Udot
@@ -446,14 +448,27 @@ class PersistentFish():
         # self.x = x + self.U*math.cos(self.psi)*dt
 
         # tail+dt*self.Uuff
-        self.pitchnow = 0.
+        # self.pitchnow = 0.
         if(self.Udot>0):
-            tailfreq_new = self.maxfreq*self.Udot/(self.sigma_u)*1.5
+            tailfreq_new = self.maxfreq*self.Udot/(self.sigma_u)*7.5
         else:
             tailfreq_new = 0
+
+        if self.statusNow == "Inactive":
+            tailfreq_new = 0
+
         self.tailfreq = (1-dt/self.tailfreq_tau)*self.tailfreq+dt/self.tailfreq_tau*tailfreq_new
+
         self.tailtheta+=self.tailfreq*dt
         self.tailangle = self.maxamp*sin(self.tailtheta) - 2*self.maxamp*self.yawrate
+        if(U>.01):
+            pitchnew = -arctan2(self.zdot,self.U)
+        else:
+            pitchnew = 0
+
+        self.pitchnow = (1-dt/self.pitchtau)*self.pitchnow+dt/self.pitchtau*pitchnew
+
+        # print self.pitchnow
         #print self.psi
         return self.x, self.y, self.psi, self.z, self.pitchnow, self.tailangle 
         #return Omega, U, S, psi, x, y
@@ -467,7 +482,7 @@ class PersistentFish():
 #        print(str(self.psi)+'\n')
 
         # return self.Omega,self.U,self.x,self.y,self.psi,self.S
-        return self.x,self.y,-self.z,self.pitch,self.psi,self.tailangle
+        return self.x,self.y,-self.z,self.pitchnow,self.psi,self.tailangle
 
 class MarkovChain(PersistentFish):
 	# Inherits a persistentfish and runs a 2-state Markov chain with time-dependent transition matrices.
@@ -540,8 +555,9 @@ class Window():
     def __init__(self, master=None):
         #Frame.__init__(self, master)    
         self.running = False     
-        self.delay = 50 #milliseconds
+        self.delay = 10 #milliseconds
         self.refreshdelay = 100
+        self.pathdelay = 33
         self.tnow = time.time()
         self.starttime =self.tnow
         self.sendHome = False
@@ -817,7 +833,7 @@ class Window():
             self.Pbutton.config(text="Enable PTW Path")
         else:
             self.Pbutton.config(text="Disable PTW Path")
-            self.pathbutton.after(self.delay,self.pathloop)
+            self.pathbutton.after(self.pathdelay,self.pathloop)
 
 
     def pathloop(self):
@@ -825,16 +841,16 @@ class Window():
         #x,y,yaw,z,pitch,tail = self.path.update(self.delay/1000.0,self.sU.get()/1000.0)
         
         # First run Markov Chain to decide what state we'll be in.
-        self.markov_elapsed += self.delay # recall that self.delay is in ms
+        self.markov_elapsed += self.pathdelay # recall that self.delay is in ms
         
         if (self.markov_elapsed >= self.markov_timer_thres):
             self.path.updateCurrentState()
             self.markov_elapsed = 0
 
         if self.path.statusNow == "Active":
-            x,y,z,pitch,yaw,tail = self.path.drivePersistentFish(self.delay/1000.0,1)
+            x,y,z,pitch,yaw,tail = self.path.drivePersistentFish(self.pathdelay/1000.0,1)
         elif self.path.statusNow == "Inactive":
-            x,y,z,pitch,yaw,tail = self.path.drivePersistentFish(self.delay/1000.0,0)
+            x,y,z,pitch,yaw,tail = self.path.drivePersistentFish(self.pathdelay/1000.0,0)
 
         relyaw = yaw - self.path.laps*2*pi
         # print "relative yaw (pathloop): "+str(relyaw)
@@ -848,7 +864,7 @@ class Window():
         self.sp.set(pitch*self.sliderscale/self.pmax)
         #if the path is active, run it again
         if(self.pathActive):
-            self.pathbutton.after(self.delay,self.pathloop)
+            self.pathbutton.after(self.pathdelay,self.pathloop)
 
 
     def sethome(self):
@@ -967,7 +983,7 @@ class Window():
         self.f5.append(f5)
         
         #write to file
-        fstring = str(c1)+'\t'+str(f1)+'\t'+str(c2)+'\t'+str(f2)+'\t'+str(c3)+'\t'+str(f3)+'\t'+str(c4)+'\t'+str(f4)+'\t'+str(c5)+'\t'+str(f5)+'\t'+str(c6)+'\r\n'
+        fstring = str(time.time())+"\t"+str(c1)+'\t'+str(f1)+'\t'+str(c2)+'\t'+str(f2)+'\t'+str(c3)+'\t'+str(f3)+'\t'+str(c4)+'\t'+str(f4)+'\t'+str(c5)+'\t'+str(f5)+'\t'+str(c6)+'\r\n'
         self.f.write(fstring)
 
         self.tvec.append(self.tnow)
@@ -1052,7 +1068,7 @@ class Window():
         self.f = open(fname,'w')
         notes = 'Elliptical Path'
         self.f.write(notes)#write to file
-        formatstring = 'c1\tf1\tc2\tf2\tc3\tf3\tc4\tf4\tc5\tf5\tc6\tf6'
+        formatstring = 'time\tc1\tf1\tc2\tf2\tc3\tf3\tc4\tf4\tc5\tf5\tc6\tf6'
 
         self.f.write(formatstring)
         self.running=True
