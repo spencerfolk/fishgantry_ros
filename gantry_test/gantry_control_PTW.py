@@ -276,12 +276,14 @@ class PersistentFish():
         forward speed (U). These stochastic differential equations also incorporate
         coupling function (fc) and wall function (fw).
         """
-        theta_w,mu_w,sigma_w = self.theta_w,self.mu_w,self.sigma_w
-        theta_u,mu_u,sigma_u = self.theta_u,self.mu_u,self.sigma_u
-        theta_zdot,mu_zdot,sigma_zdot = self.theta_zdot,self.mu_zdot,self.sigma_zdot
+
         
         sigma_o = self.sigma_o
         dt = self.dt
+
+        theta_w,mu_w,sigma_w = self.theta_w,self.mu_w,self.sigma_w
+        theta_u,mu_u,sigma_u = self.theta_u,self.mu_u,self.sigma_u*.033/dt
+        theta_zdot,mu_zdot,sigma_zdot = self.theta_zdot,self.mu_zdot,self.sigma_zdot*.033/dt
         
         # Compute coupling force fc
 #         if(U<mu_u):
@@ -557,7 +559,7 @@ class Window():
         self.running = False     
         self.delay = 10 #milliseconds
         self.refreshdelay = 100
-        self.pathdelay = 33
+        self.pathdelay = 10
         self.tnow = time.time()
         self.starttime =self.tnow
         self.sendHome = False
