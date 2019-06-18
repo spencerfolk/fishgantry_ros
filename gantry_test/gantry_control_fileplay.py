@@ -15,6 +15,8 @@ import serial
 import time
 # import sys
 from Tkinter import *
+import tkFileDialog
+
 # import tkinter
 
 from matplotlib.backends.backend_tkagg import (
@@ -33,38 +35,68 @@ import datetime
 class RecordedPath():
     def __init__(self,fname,dt):
 
-        self.xnow = 0.
-        self.ynow = 0.
-        self.znow = 0.
-        self.pitchnow =0.
-        self.yawnow = 0.
-        #data should come in as t,x,y,z
-        self.data = loadtxt(fname)
-        self.tdata = self.data[:,0]
-        self.xdata = self.data[:,1]
-        self.ydata = self.data[:,2]
-        self.zdata = self.data[:,3]
-        #calculate pitch data from z vs. planar velocity
-        self.pitchdata = arctan2(diff(self.zdata),sqrt(diff(self.xdata)**2+diff(self.ydata)**2))
-        self.pitchdata = append(array([self.pitchdata[0]]),self.pitchdata)
-        #constrain the pitch data so that the fish never goes below 0 or above a threhold
-        self.pitchdata[(self.pitchdata<0)]=0
-        self.pitchdata[(self.pitchdata>pi/4.)]=pi/4.
-        #now calculate the yaw angle of the fish. There will be "laps" we'll have to account for.
-        self.yawraw = arctan2(diff(self.ydata),diff(self.xdata))
-        self.yawraw = append(array(self.yawraw[0]),self.yawraw)
-        laps = 0
-        self.yawdata = zeros(len(self.yawraw))
-        self.yawdata[0] = self.yawraw[0]
+        if fname is not None:
+            self.tailtheta = 0.
+            self.tailangle = 0.
+            self.tailfreq = 0.
+            self.maxfreq = 2*2.*pi
+            self.tailfreq_tau = 0.5
+            self.pitchtau = 1.0
+            self.maxamp = 15.
 
-        for k in range(1,len(self.yawraw)):
-            if(abs(self.yawraw[k]-self.yawraw[k-1])>=pi):
-                laps += sign(self.yawraw[k]-self.yawraw[k-1])
-            self.yawdata[k] = laps*2*pi+self.yawraw[k]
+            self.xnow = 0.
+            self.ynow = 0.
+            self.znow = 0.
+            self.pitchnow =0.
+            self.yawnow = 0.
+            #data should come in as t,x,y,z
+            self.data = loadtxt(fname)
+            self.tdata = self.data[:,0]
+            self.xdata = self.data[:,1]
+            self.ydata = self.data[:,2]
+            self.zdata = self.data[:,3]
+            #calculate pitch data from z vs. planar velocity
+            self.pitchdata = arctan2(diff(self.zdata),sqrt(diff(self.xdata)**2+diff(self.ydata)**2))
+            self.pitchdata = append(array([self.pitchdata[0]]),self.pitchdata)
+            #constrain the pitch data so that the fish never goes below 0 or above a threhold
+            self.pitchdata[(self.pitchdata<0)]=0
+            self.pitchdata[(self.pitchdata>pi/4.)]=pi/4.
+            #now calculate the yaw angle of the fish. There will be "laps" we'll have to account for.
+            self.yawraw = arctan2(diff(self.ydata),diff(self.xdata))
+            self.yawraw = append(array(self.yawraw[0]),self.yawraw)
+            laps = 0
+            self.yawdata = zeros(len(self.yawraw))
+            self.yawdata[0] = self.yawraw[0]
 
-        #zero out the time just in case it does not start at zero
-        self.tdata = self.tdata-self.tdata[0]
-        self.tnow = 0.
+            for k in range(1,len(self.yawraw)):
+                if(abs(self.yawraw[k]-self.yawraw[k-1])>=pi):
+                    laps += sign(self.yawraw[k]-self.yawraw[k-1])
+                self.yawdata[k] = laps*2*pi+self.yawraw[k]
+
+            #zero out the time just in case it does not start at zero
+            self.tdata = self.tdata-self.tdata[0]
+            self.tnow = 0.
+
+            self.U = sqrt((diff(self.xdata)/diff(self.tdata))**2+(diff(self.ydata)/diff(self.tdata))**2)
+            self.U = append(array(self.U[0]),self.U)
+            self.maxspeed = max(self.U)
+
+            self.zdot = diff(self.zdata)/diff(self.tdata)
+            self.zdot = append(array([self.zdot[0]]),self.zdot)
+
+            self.yawrate = diff(self.yawdata)/diff(self.tdata)
+            self.yawrate = append(array([self.yawrate[0]]),self.yawrate)
+
+            self.Udot = diff(self.U)/diff(self.tdata)
+            self.Udot = append(array([self.Udot[0]]),self.Udot)
+            self.Udotmax = max(self.Udot)
+
+            self.Unow,self.Udotnow = 0,0
+
+
+
+        else:
+            print "No valid file!"
 
     def update(self,dt):
         self.tnow +=dt
@@ -72,325 +104,40 @@ class RecordedPath():
             self.xnow = interp(self.tnow,self.tdata,self.xdata)
             self.ynow = interp(self.tnow,self.tdata,self.ydata)
             self.znow = interp(self.tnow,self.tdata,self.zdata)
-            self.pitchnow = interp(self.tnow,self.tdata,self.pitchdata)
+            # self.pitchnow = interp(self.tnow,self.tdata,self.pitchdata)
             self.yawnow = interp(self.tnow,self.tdata,self.yawdata)
-        return self.xnow,self.ynow,self.znow,self.pitchnow,self.yawnow
+            self.Unow = interp(self.tnow,self.tdata,self.U)
+            self.Udotnow = interp(self.tnow,self.tdata,self.Udot)
+            self.zdotnow = interp(self.tnow,self.tdata,self.zdot)
+            self.yawratenow = interp(self.tnow,self.tdata,self.yawrate)
 
-
-class EllipticalPath():
-    def __init__(self,a=.1,b=.1,U=.05,c=0.1,maxfreq = 2*2*pi,maxamp = 1.5,maxspeed = 0.1):
-        self.a,self.b,self.U,self.c,self.maxfreq,self.maxamp,self.maxspeed = a,b,U,c,maxfreq,maxamp,maxspeed
-        self.theta = arange(0,2*pi,.01) #range of thetas
-        self.tailtheta = 0
-        self.tailangle = 0
-        self.tailfreq = self.maxfreq
-        self.x = a*cos(self.theta)+a
-        self.y = b*sin(self.theta)+b
-        #for swimming up and down
-        self.z = c*sin(self.theta)-c
-        self.S = zeros(len(self.y))
-        self.yaw = zeros(len(self.y))
-        self.pitch = zeros(len(self.y))
-        self.yawnow = 0
-        self.oldyaw = 0
-        self.yawrate = 0
-        self.pitchnow = 0
-        self.updateGeometry(a,b,U,c)
-        self.laps = 0
-        self.f = None
-
-
-    def update(self,dt,U):
-        self.U = U
-        
-        if(self.Snow)>self.maxS:
-            self.Snow-=self.maxS
-            self.laps+=1
-        self.Snow += dt*self.U
-        self.xnow = interp(self.Snow,self.S,self.x)
-        self.ynow = interp(self.Snow,self.S,self.y)
-        self.yawnow = interp(self.Snow,self.S,self.yaw)
-
-        self.yawrate = (self.yawnow-self.oldyaw)/dt
-        self.oldyaw = self.yawnow
-
-        self.znow = interp(self.Snow,self.S,self.z)
-        self.pitchnow = interp(self.Snow,self.S,self.pitch)
-        self.tailfreq = self.maxfreq
-        self.tailtheta+=self.tailfreq*dt
-        self.tailangle = self.maxamp*sin(self.tailtheta) - self.maxamp*self.yawrate
-        #print self.Snow,self.maxS
-        return self.xnow, self.ynow,self.yawnow,self.znow,self.pitchnow,self.tailangle
-
-    def updateGeometry(self,a,b,U,c):
-        self.x = a*cos(self.theta)+a
-        self.y = b*sin(self.theta)+b
-        self.z = c*sin(self.theta)-c
-        self.S = zeros(len(self.y))
-        roll=0
-        self.yaw[0] = arctan2(self.y[1]-self.y[0],self.x[1]-self.x[0])
-        ind =1
-        self.pitch[ind] = arctan2(self.z[ind]-self.z[ind-1],sqrt((self.y[ind]-self.y[ind-1])**2+(self.x[ind]-self.x[ind-1])**2))
-        for ind in range(1,len(self.S)):
-            delta_S = sqrt((self.x[ind]-self.x[ind-1])**2+(self.y[ind]-self.y[ind-1])**2)
-            self.S[ind]=self.S[ind-1]+delta_S
-            self.yaw[ind] = arctan2(self.y[ind]-self.y[ind-1],self.x[ind]-self.x[ind-1])
-            self.pitch[ind] = arctan2(self.z[ind]-self.z[ind-1],sqrt((self.y[ind]-self.y[ind-1])**2+(self.x[ind]-self.x[ind-1])**2))
-            if(abs(self.yaw[ind]-self.yaw[ind-1])>=pi):
-                roll=1
-            self.yaw[ind] = self.yaw[ind]+roll*2*pi
-
-        self.maxS = self.S[-1]
-        sind = where(self.theta>(pi))[0][0]
-        self.Snow = self.S[sind]
-        self.xnow,self.ynow = 0,0
-
-class PersistentFish():
-    """
-    Class defining a fish following persistent random turning behavior as 
-    detailed in Zienkiewicz 2015 paper.
-    sigma_u = 0.059;                        % (m/s)
-    theta_u = 4.21;                         % (s^-1)
-    mu_u = 0.1402;                          % mean speed (m/s)
-
-    sigma_w = 2.85;                         % (rad/s)
-    theta_w = 2.74;                         % (s^-1)
-    mu_w = -0.02;                           % mean yaw rate (rad/s)
-
-    fw = 0.0;                               % Forcing term due to boundaries
-    dw = 0.0;                               % Magnitude of distance to boundary
-
-    sigma_o = 12;                           % saturation variance (rad/s)
-    fc = 0.0;                               % coupling function, forcing term
-    
-    U = zeros(size(time));                  % swimming speed array (m/s)
-    dU = zeros(size(time));                 % change in swimming speed (m/s^2)
-    Omega = zeros(size(time));              % yaw rate, changes w random input (rad/s)
-    dOmega = zeros(size(time));             % change in yaw rate, acceleration, (rad/s^2)
-    dW = randn(size(time));                 % random input to yaw rate, should be Brownian if possible
-    dZ = randn(size(time));                 % random input to speed, should be Brownian if possible
-
-    xpos = zeros(size(time));               % Global x position (m)
-    dxpos = zeros(size(time));              % Change in global x position (m/s)
-    ypos = zeros(size(time));               % Global y position (m)
-    dypos = zeros(size(time));              % Change in global y position (m/s)
-
-    xpos(1) = 0;
-    ypos(1) = 0;
-
-    s = zeros(size(time));                  % Relative distance along curvilinear path
-    phi = zeros(size(time));                % Global heading (rad)
-    """
-    def __init__(self,sigma_u=0.059,theta_u=4.21,mu_u=0.1402,
-                 sigma_w=2.85,theta_w=2.74,mu_w=-0.02,sigma_o=12,fc=0):
-        self.sigma_u,self.theta_u,self.mu_u,self.sigma_w=sigma_u,theta_u,mu_u,sigma_w
-        self.theta_w,self.mu_w,self.sigma_o,self.fc = theta_w,mu_w,sigma_o,fc
-        self.U = 0. 
-        self.Omega = 0.
-        self.yawrate = 0.
-        self.xpos = 0. # position in middle of tank
-        self.ypos = 0.
-        self.S = 0.
-        self.phi = 0.
-
-        self.theta = arange(0,2*pi,.01) #range of thetas
-        self.tailtheta = 0
-        self.tailangle = 0
-        self.tailfreq = 0.
-        self.maxfreq = 2*2*pi
-
-        #for swimming up and down
-        self.z = 0
-        self.pitch = 0.
-        self.pitchnow = 0
-        self.laps = 0
-        self.f = None
-        self.maxamp = 1.5
-        self.maxspeed = 0.1
-        # xmax = 1
-        # ymax = 1
-        # zmax = 1
-        # self.updateGeometry(xmax,ymax,zmax)
-
-    def updateGeometry(self,xmax,ymax,zmax):
-        self.x = xmax/2
-        self.y = ymax/2
-        self.z = zmax/2
-
-        self.bound_X = xmax
-        self.bound_Y = ymax
-    
-        self.bounds = array([[        0,                        0                 ],
-                                [     0,                        self.bound_Y 	  ],
-                                [     self.bound_X 	  ,         self.bound_Y 	  ],
-                                [     self.bound_X 	  ,         0                 ]])
-
-        print("updateGeometry successful - ")
-        print("Bounds = \n")
-        print(self.bounds);
-
-
-    
-    def findDistance(self,bounds,xpos,ypos,psi):
-
-        # Generate bound segments
-        m = zeros((bounds.shape[0],1))
-        for index in range(0,bounds.shape[0]):
-            m[index] = (bounds[index][1]-bounds[index-1][1])/(bounds[index][0]-bounds[index-1][0])
-        
-        bound_segments = append(bounds,m,axis=1)
-        # Uses point-slope form to find intersection of ray (fish heading) and the 
-        # bounds of the tank. Assumes psi is between 0 and 2pi
-        
-        # Create ray describing current heading
-        if psi<0:
-            psi += 2*math.pi
-        m_ray = math.tan(psi)
-        
-        x_intersect_arr = array([])
-        y_intersect_arr = array([])
-        
-        for index in range(0,bound_segments.shape[0]):
-            # Loop through each boundary segment and find intersection point
-            # Shortcut because we know the tank boundaries will always be either 
-            # vertical or horizontal. 
-            if abs(bound_segments[index][2]) == 0:
-                # Horizontal line described by y = num
-                y_intersect = bound_segments[index][1] # will intersect at this y value
-                x_intersect = (y_intersect + m_ray*xpos - ypos)/m_ray # point-slope solved for x
-            elif math.isinf(bound_segments[index][2]):
-                # Vertical line described by x = num
-                x_intersect = bound_segments[index][0] # will intersect this x value
-                y_intersect = m_ray*(x_intersect - xpos) + ypos # point-slope solved for y
-            
-            # Save values in array
-            x_intersect_arr = append(x_intersect_arr,x_intersect)
-            y_intersect_arr = append(y_intersect_arr,y_intersect)
-        
-        # Use intersection points to find distance
-        distances = sqrt(square(x_intersect_arr-xpos)+square(y_intersect_arr-ypos))
-        
-        # Now we need to find the right quadrant of intersection point.
-        quad_ray = math.floor(psi/(math.pi/2))+1
-        if (psi == math.pi/2 and xpos > 0) or (psi == math.pi and ypos > 0) or (psi == 3*math.pi/2 and xpos < 0):
-            # correct for weird instances where quadrant is iffy. Shouldn't ever occur
-            # because it's very very unlikely yaw will be exactly pi, pi/2, etc.
-            quad_ray -= 1
-        
-        if (psi == 0 and ypos < 0):
-            # see above, yes these are one-off solutions but again this shouldn't really occur
-            # in practice.
-            quad_ray = 4
-            
-        intersect_angles = arctan2(y_intersect_arr-ypos,x_intersect_arr-xpos)
-        for i in range(len(intersect_angles)):
-            if intersect_angles[i] < 0:
-                intersect_angles[i] += 2*math.pi
-                
-        quad_intersections = floor(intersect_angles/(math.pi/2))+1
-        
-        flag = 0
-        for i in range(len(quad_intersections)):                        # not out of the fish bounds
-            x_pt = x_intersect_arr[i]
-            y_pt = y_intersect_arr[i]
-            if ((quad_intersections[i] == quad_ray) and (abs(x_pt) <= (self.bound_X+0.1)) and (abs(y_pt) <= (self.bound_Y/2+0.1))):
-                dw = distances[i]
-#                x_intersect_actual = x_intersect_arr[i]
-#                y_intersect_actual = y_intersect_arr[i]
-                break
+            if(self.Udotnow)>0:
+                tailfreq_new = self.maxfreq*self.Udotnow/(self.Udotmax)*7.5
             else:
-            	dw = 0.001
-            	flag = 1
-        if flag:
-        	print(str(xpos)+"\t"+str(ypos)+"\t"+str(psi))
+                tailfreq_new = 0
+            self.tailfreq = (1-dt/self.tailfreq_tau)*self.tailfreq+dt/self.tailfreq_tau*tailfreq_new
+            self.tailtheta+=self.tailfreq*dt
+            self.tailangle = self.maxamp*sin(self.tailtheta) - 2*self.maxamp*self.yawratenow
+            if(self.Unow>.01):
+                pitchnew = -arctan2(self.zdotnow,self.Unow)
+            else:
+                pitchnew = 0
 
-    	return dw
-        
-    def calcDerivatives(self,Omega,U,xpos,ypos,phi):
-        """
-        Calculates derivatives based on previous values of yaw rate (Omega) and
-        forward speed (U). These stochastic differential equations also incorporate
-        coupling function (fc) and wall function (fw).
-        """
-        theta_w,mu_w,sigma_w = self.theta_w,self.mu_w,self.sigma_w
-        theta_u,mu_u,sigma_u = self.theta_u,self.mu_u,self.sigma_u
-        
-        sigma_o = self.sigma_o
-        dt = self.dt
-        
-        # Compute coupling force fc
-        fc = sigma_o*(2*sigma_o/sigma_w)**(-U/mu_u)
-        
-        # Compute wall force
-        dw = PersistentFish.findDistance(self,self.bounds,xpos,ypos,phi);
-        fw = 2.25*math.exp(-0.11*dw)
-        
-        if Omega >= 0:
-            # Repulsive behavior, depending on sign of previous turning speed 
-            # it'll push in either direction
-            fw = -fw
-        
-        # Obtain random values that act as forcing terms.
-        # randn() should work just like randn in matlab. Normally distributed about 0 mean
-        dZ = random.randn()
-        dW = random.randn()
-        
-        # Derivatives
-        Omegadot = theta_w*(mu_w+fw-Omega)*dt + fc*dZ;
-        Udot = theta_u*(mu_u-U)*dt + sigma_u*dW;
-        
-        return Omegadot, Udot, dw # return dw for detecting collision
-    
-    def updateStates(self,dt,Omega,U,xpos,ypos,phi,S):
-        self.dt = dt
-        Omegadot, Udot, dw = self.calcDerivatives(Omega,U,xpos,ypos,phi)
-        self.Omega += Omegadot*dt
-        self.U += Udot*dt
-        
-        if dw <= 0.1:
-            self.U = 0
-            
-        # Determine relative positions S, phi
-        self.S = S + self.U*dt
-        self.phi = phi + self.Omega*dt
-        if abs(self.phi)>=2*math.pi:
-            # Keep yaw within 0 to 2pi
-            if self.phi < 0:
-                self.phi += 2*math.pi
-            if self.phi > 0:
-                self.phi -= 2*math.pi
-        
-        # Use these to transform to local coordinates
-        self.xpos = xpos + self.U*math.cos(phi)*dt
-        self.ypos = ypos + self.U*math.sin(phi)*dt
+            self.pitchnow = (1-dt/self.pitchtau)*self.pitchnow+dt/self.pitchtau*pitchnew
 
-        # tail+dt*self.Uuff
-        self.znow = 0.
-        self.pitchnow = 0.
-        self.tailfreq = self.maxfreq
-        self.tailtheta+=self.tailfreq*dt
-        self.tailangle = self.maxamp*sin(self.tailtheta) - self.maxamp*self.yawrate
+
+
+
+
         
-        return self.xpos, self.ypos, self.phi, self.znow, self.pitchnow, self.tailangle 
-        #return Omega, U, S, phi, xpos, ypos
-
-    
-    def drivePersistentFish(self,dt):
-        self.dt = dt
-        # Update states given current position and speed
-        self.updateStates(dt,self.Omega,self.U,self.xpos,self.ypos,self.phi,self.S)
-#        print(str(self.xpos)+'\t'+str(self.ypos)+'\n')
-#        print(str(self.phi)+'\n')
-
-        return self.Omega,self.U,self.xpos,self.ypos,self.phi,self.S
-
+        return self.xnow,self.ynow,self.znow,self.pitchnow,self.yawnow,self.tailangle
 
 
 class Window():
     def __init__(self, master=None):
         #Frame.__init__(self, master)    
         self.running = False     
-        self.delay = 50 #milliseconds
+        self.delay = 10 #milliseconds
         self.refreshdelay = 100
         self.tnow = time.time()
         self.starttime =self.tnow
@@ -450,12 +197,13 @@ class Window():
         self.pathActive = False
         self.pathWasActive = False
 
-        self.path = PersistentFish()
-        self.path.updateGeometry(self.xmax,self.ymax,self.zmax)
+
 
         #initialize the window
         self.init_window()
     def init_window(self):
+        self.fname = None
+        self.RP = None
         self.master.title("GANTRY CONTROL")
         # allowing the widget to take the full space of the root window
         #self.master.pack(fill=BOTH, expand=1)
@@ -479,7 +227,7 @@ class Window():
         Lport=Label(self.master, textvariable=Tport, height=1)
         Lport.pack(in_=self.lside,side="top")
         SVport = StringVar()
-        SVport.set("/dev/cu.usbmodem1421")
+        SVport.set("/dev/ttyACM0")
         self.Eport =Entry(self.master,textvariable=SVport,width=20)
         self.Eport.pack(in_=self.lside,side="top")
         #label and box for baud rate
@@ -553,8 +301,14 @@ class Window():
         self.enbox = Checkbutton(self.master, text="Disable", variable=self.disableState)
         self.enbox.pack(in_=self.mside,side="top")
 
+
+
+        # root.filename =  filedialog.askopenfilename(initialdir = "/",title = "Select file",filetypes = (("jpeg files","*.jpg"),("all files","*.*")))
+        self.Fbutton = Button(master=self.master,text="Choose Path File",command=self.setfname)
+        self.Fbutton.pack(in_=self.mside,side="top")
+
         #make button for activating elliptical path
-        self.Pbutton = Button(master=self.master, text="Enable Elliptical Path", command=self.setpath)
+        self.Pbutton = Button(master=self.master, text="Play File Path", command=self.setpath)
         self.Pbutton.pack(in_=self.mside,side="top")
 
         Ta=StringVar()
@@ -632,25 +386,22 @@ class Window():
         self.Eamax =Entry(self.master,textvariable=SV,width=5)
         self.Eamax.pack(in_=self.mside,side="left")  
         
-    
+    def setfname(self):
+        self.fname = tkFileDialog.askopenfilename(initialdir = "/home/brownlab/catkin_ws/src/fishgantry/gantry_test",title = "Select file",filetypes = (("jpeg files","*.jpg"),("all files","*.*")))
+        
+
     def setpath(self):
         self.pathActive = not self.pathActive
         #get the a and b for this ellipse, and update the path geometry
         if(self.pathActive):
-            self.xmax=float(self.Exmax.get())
-            self.ymax=float(self.Eymax.get())
-            self.zmax = float(self.Ezmax.get())
-            self.pmax = float(self.Epmax.get())
-            self.amax = float(self.Eamax.get())
-            # self.path.updateGeometry(self.xmax/2,self.ymax/2,self.sU.get()/1000.0,self.zmax/2)
-            self.path.updateGeometry(self.xmax,self.ymax,self.zmax)
-            self.path.drivePersistentFish(self.delay/1000.0)
+            self.path = RecordedPath(self.fname,self.delay/1000.0)
+            self.path.update(self.delay/1000.0)
             print("updated path geometry")
         #update the path x and y positions
         if(not self.pathActive):
-            self.Pbutton.config(text="Enable Elliptical Path")
+            self.Pbutton.config(text="Enable File Playback")
         else:
-            self.Pbutton.config(text="Disable Elliptical Path")
+            self.Pbutton.config(text="Disable File Playback")
             self.pathbutton.after(self.delay,self.pathloop)
         
 
@@ -659,7 +410,7 @@ class Window():
     def pathloop(self):
         #if path is active, update the x and y commands
         #x,y,yaw,z,pitch,tail = self.path.update(self.delay/1000.0,self.sU.get()/1000.0)
-        x,y,yaw,z,pitch,tail = self.path.drivePersistentFish(self.delay/1000.0)
+        x,y,z,pitch,yaw,tail = self.path.update(self.delay/1000.0)
         #print(x,y,yaw)
         #now set the x and y sliders accordingly
         self.sx.set(x*self.sliderscale/self.xmax)
@@ -682,7 +433,7 @@ class Window():
         #first, get the value from each slider
         controlcommand = False
         if(not self.sendHome):
-            c1,c2,c3,c4,c5,c6 = float(self.sx.get())*self.xmax/self.sliderscale,float(self.sy.get())*self.ymax/self.sliderscale,float(self.sz.get())*self.zmax/self.sliderscale,float(self.sp.get())*self.pmax/self.sliderscale,(float(self.sa.get()))*self.amax/self.sliderscale+self.path.laps*2*pi,float(self.st.get())
+            c1,c2,c3,c4,c5,c6 = float(self.sx.get())*self.xmax/self.sliderscale,float(self.sy.get())*self.ymax/self.sliderscale,float(self.sz.get())*self.zmax/self.sliderscale,float(self.sp.get())*self.pmax/self.sliderscale,(float(self.sa.get()))*self.amax/self.sliderscale,float(self.st.get())
         else:
             controlcommand=True
             c1,c2,c3,c4,c5,c6 = -111.1,-111.1,-111.1,-111.1,-111.1,0
@@ -733,7 +484,7 @@ class Window():
             if len(splitline)==6:
                 ardt,f1,f2,f3,f4,f5 = float(splitline[0]),float(splitline[1]),float(splitline[2]),float(splitline[3]),float(splitline[4]),float(splitline[5])
                 #if we have fewer points than the buffer size (we haven't been running for long):
-                print "got:     " + str(ardt)+","+str(f1)+","+str(f2)+","+str(f3)+","+str(f4)+","+str(f5)
+                # print "got:     " + str(ardt)+","+str(f1)+","+str(f2)+","+str(f3)+","+str(f4)+","+str(f5)
         else:
             self.ser.flush()
 
