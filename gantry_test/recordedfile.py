@@ -1,5 +1,6 @@
 from numpy import * 
 from matplotlib.pyplot import *
+from scipy.signal import medfilt, butter,filtfilt
 
 class RecordedPath():
     def __init__(self,fname,dt):
@@ -12,9 +13,17 @@ class RecordedPath():
         #data should come in as t,x,y,z
         self.data = loadtxt(fname)
         self.tdata = self.data[:,0]
+        
+        b,a = butter(3,.05)
         self.xdata = self.data[:,1]
+        # self.xdata = filtfilt(b,a,self.xdata)
+
         self.ydata = self.data[:,2]
+        # self.ydata = filtfilt(b,a,self.ydata)
+
         self.zdata = self.data[:,3]
+        # self.zdata = filtfilt(b,a,self.zdata)
+
         #calculate pitch data from z vs. planar velocity
         self.pitchdata = arctan2(diff(self.zdata),sqrt(diff(self.xdata)**2+diff(self.ydata)**2))
         self.pitchdata = append(array([self.pitchdata[0]]),self.pitchdata)
@@ -27,21 +36,28 @@ class RecordedPath():
         laps = 0
         self.yawdata = zeros(len(self.yawraw))
         self.yawdata[0] = self.yawraw[0]
+        self.yawdata = medfilt(self.yawdata,21)
 
         for k in range(1,len(self.yawraw)):
             if(abs(self.yawraw[k]-self.yawraw[k-1])>=pi):
-                laps += sign(self.yawraw[k]-self.yawraw[k-1])
+                laps -= sign(self.yawraw[k]-self.yawraw[k-1])
             self.yawdata[k] = laps*2*pi+self.yawraw[k]
+        # self.yawdata = medfilt(self.yawdata,13)
 
         #zero out the time just in case it does not start at zero
         self.tdata = self.tdata-self.tdata[0]
         self.tnow = 0.
         self.U = sqrt((diff(self.xdata)/diff(self.tdata))**2+(diff(self.ydata)/diff(self.tdata))**2)
         self.U = append(array(self.U[0]),self.U)
+        b,a = butter(8,.1)
+        # self.U = filtfilt(b,a,self.U)
+        
         self.maxspeed = max(self.U)
 
         self.Udot = diff(self.U)/diff(self.tdata)
         self.Udot = append(array([self.Udot[0]]),self.Udot)
+        # self.Udot = filtfilt(b,a,self.Udot)
+        # self.Udot = medfilt(self.Udot,21)
 
 
     def update(self,dt):
@@ -69,7 +85,7 @@ def demo():
 
 
     figure()
-    plot(t,newdata[:,6])
+    plot(t,newdata[:,4],RP.tdata,RP.yawdata)
     figure()
     plot(newdata[:,0],newdata[:,1])
     axis('equal')

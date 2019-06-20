@@ -24,6 +24,7 @@ from matplotlib.backends.backend_tkagg import (
 # Implement the default Matplotlib key bindings.
 from matplotlib.backend_bases import key_press_handler
 from matplotlib.figure import Figure
+from scipy.signal import medfilt, butter,filtfilt
 
 from numpy import *
 import math
@@ -52,26 +53,35 @@ class RecordedPath():
             #data should come in as t,x,y,z
             self.data = loadtxt(fname)
             self.tdata = self.data[:,0]
+            b,a = butter(3,.03)
             self.xdata = self.data[:,1]
+            self.xdata = filtfilt(b,a,self.xdata)
+
             self.ydata = self.data[:,2]
+            self.ydata = filtfilt(b,a,self.ydata)
+
             self.zdata = self.data[:,3]
+            self.zdata = filtfilt(b,a,self.zdata)
             #calculate pitch data from z vs. planar velocity
-            self.pitchdata = arctan2(diff(self.zdata),sqrt(diff(self.xdata)**2+diff(self.ydata)**2))
+            self.pitchdata = arctan2(-diff(self.zdata),sqrt(diff(self.xdata)**2+diff(self.ydata)**2))
             self.pitchdata = append(array([self.pitchdata[0]]),self.pitchdata)
             #constrain the pitch data so that the fish never goes below 0 or above a threhold
             self.pitchdata[(self.pitchdata<0)]=0
             self.pitchdata[(self.pitchdata>pi/4.)]=pi/4.
+            self.pitchdata = medfilt(self.pitchdata,13)
             #now calculate the yaw angle of the fish. There will be "laps" we'll have to account for.
             self.yawraw = arctan2(diff(self.ydata),diff(self.xdata))
             self.yawraw = append(array(self.yawraw[0]),self.yawraw)
             laps = 0
             self.yawdata = zeros(len(self.yawraw))
             self.yawdata[0] = self.yawraw[0]
+            self.laps = 0
 
             for k in range(1,len(self.yawraw)):
                 if(abs(self.yawraw[k]-self.yawraw[k-1])>=pi):
-                    laps += sign(self.yawraw[k]-self.yawraw[k-1])
-                self.yawdata[k] = laps*2*pi+self.yawraw[k]
+                    self.laps -= sign(self.yawraw[k]-self.yawraw[k-1])
+                self.yawdata[k] = self.laps*2*pi+self.yawraw[k]
+            # self.yawdata = medfilt(self.yawdata,5)
 
             #zero out the time just in case it does not start at zero
             self.tdata = self.tdata-self.tdata[0]
@@ -79,6 +89,8 @@ class RecordedPath():
 
             self.U = sqrt((diff(self.xdata)/diff(self.tdata))**2+(diff(self.ydata)/diff(self.tdata))**2)
             self.U = append(array(self.U[0]),self.U)
+            b,a = butter(3,.05)
+            self.U = filtfilt(b,a,self.U)
             self.maxspeed = max(self.U)
 
             self.zdot = diff(self.zdata)/diff(self.tdata)
@@ -92,6 +104,7 @@ class RecordedPath():
             self.Udotmax = max(self.Udot)
 
             self.Unow,self.Udotnow = 0,0
+
 
 
 
@@ -116,8 +129,11 @@ class RecordedPath():
             else:
                 tailfreq_new = 0
             self.tailfreq = (1-dt/self.tailfreq_tau)*self.tailfreq+dt/self.tailfreq_tau*tailfreq_new
-            self.tailtheta+=self.tailfreq*dt
-            self.tailangle = self.maxamp*sin(self.tailtheta) - 2*self.maxamp*self.yawratenow
+            if(self.tailfreq<1):
+                self.tailangle += -dt/self.tailfreq_tau*self.tailangle
+            else:
+                self.tailtheta+=self.tailfreq*dt
+                self.tailangle = self.maxamp*sin(self.tailtheta) - 2*self.maxamp*self.yawratenow
             if(self.Unow>.01):
                 pitchnew = -arctan2(self.zdotnow,self.Unow)
             else:
@@ -153,6 +169,7 @@ class Window():
         self.ax = self.fig.add_subplot(111)
         self.commandline,=self.ax.plot(self.t,2*sin(2*pi*self.t),'r')
         self.feedbackline,=self.ax.plot(self.t,2*sin(2*pi*self.t+pi/6),'k')
+        self.currentline,=self.ax.plot(array(self.t[-1]),array(2*sin(2*pi*self.t[-1]+pi/6)),'ko')
         self.ax.legend(['command','feedback'],loc=1)
         self.ax.set_xlabel('Time (s)')
         self.ax.set_ylabel('Output')
@@ -304,19 +321,19 @@ class Window():
 
 
         # root.filename =  filedialog.askopenfilename(initialdir = "/",title = "Select file",filetypes = (("jpeg files","*.jpg"),("all files","*.*")))
-        self.Fbutton = Button(master=self.master,text="Choose Path File",command=self.setfname)
+        self.Fbutton = Button(master=self.master,text="Choose Playback File",command=self.setfname)
         self.Fbutton.pack(in_=self.mside,side="top")
 
         #make button for activating elliptical path
-        self.Pbutton = Button(master=self.master, text="Play File Path", command=self.setpath)
+        self.Pbutton = Button(master=self.master, text="Enable File Playback", command=self.setpath)
         self.Pbutton.pack(in_=self.mside,side="top")
 
-        Ta=StringVar()
-        Ta.set("Path Speed (mm/s)")
-        self.sU = Scale(self.master,from_=0,to=300,orient=HORIZONTAL,length=200)
-        self.sU.pack(in_=self.mside,side="top")
-        La=Label(self.master, textvariable=Ta, height=1)
-        La.pack(in_=self.lside,side="top")
+        # Ta=StringVar()
+        # Ta.set("Path Speed (mm/s)")
+        # self.sU = Scale(self.master,from_=0,to=300,orient=HORIZONTAL,length=200)
+        # self.sU.pack(in_=self.mside,side="top")
+        # La=Label(self.master, textvariable=Ta, height=1)
+        # La.pack(in_=self.lside,side="top")
 
         #create the dropdown menu for axes:
         SV = StringVar()
@@ -387,7 +404,7 @@ class Window():
         self.Eamax.pack(in_=self.mside,side="left")  
         
     def setfname(self):
-        self.fname = tkFileDialog.askopenfilename(initialdir = "/home/brownlab/catkin_ws/src/fishgantry/gantry_test",title = "Select file",filetypes = (("jpeg files","*.jpg"),("all files","*.*")))
+        self.fname = tkFileDialog.askopenfilename(initialdir = "/home/brownlab/catkin_ws/src/fishgantry/gantry_test",title = "Select file",filetypes = (("text files","*.txt"),("all files","*.*")))
         
 
     def setpath(self):
@@ -539,6 +556,7 @@ class Window():
         if(self.plotaxis=="x axis"):
             self.commandline.set_data(self.tvec,self.c1)
             self.feedbackline.set_data(self.tvec,self.f1)
+            self.currentline.set_data(self.tvec[-1],self.f1[-1])
              #set the axis limits
             self.ax.set_xlim([self.tvec[0],self.tvec[-1]])
             self.ax.set_ylim([0,self.xmax])
@@ -547,6 +565,7 @@ class Window():
         elif(self.plotaxis=="y axis"):
             self.commandline.set_data(self.tvec,self.c2)
             self.feedbackline.set_data(self.tvec,self.f2)
+            self.currentline.set_data(self.tvec[-1],self.f2[-1])
             #set the axis limits
             self.ax.set_xlim([self.tvec[0],self.tvec[-1]])
             self.ax.set_ylim([0,self.ymax])
@@ -555,6 +574,7 @@ class Window():
         elif(self.plotaxis=="z axis"):
             self.commandline.set_data(self.tvec,self.c3)
             self.feedbackline.set_data(self.tvec,self.f3)
+            self.currentline.set_data(self.tvec[-1],self.f3[-1])
             #set the axis limits
             self.ax.set_xlim([self.tvec[0],self.tvec[-1]])
             self.ax.set_ylim([-self.zmax,0])
@@ -563,6 +583,7 @@ class Window():
         elif(self.plotaxis=="tilt axis"):
             self.commandline.set_data(self.tvec,self.c4)
             self.feedbackline.set_data(self.tvec,self.f4)
+            self.currentline.set_data(self.tvec[-1],self.f4[-1])
             #set the axis limits
             self.ax.set_xlim([self.tvec[0],self.tvec[-1]])
             self.ax.set_ylim([0,self.pmax])
@@ -571,6 +592,7 @@ class Window():
         elif(self.plotaxis=="yaw axis"):
             self.commandline.set_data(self.tvec,self.c5)
             self.feedbackline.set_data(self.tvec,self.f5)
+            self.currentline.set_data(self.tvec[-1],self.f5[-1])
             #set the axis limits
             self.ax.set_xlim([self.tvec[0],self.tvec[-1]])
             self.ax.set_ylim([0,self.amax+self.path.laps*2*pi])
@@ -579,6 +601,7 @@ class Window():
         elif(self.plotaxis == "xy plan view"):
             self.commandline.set_data(self.c1,self.c2)
             self.feedbackline.set_data(self.f1,self.f2)
+            self.currentline.set_data(self.f1[-1],self.f2[-1])
             self.ax.set_xlim([0,self.xmax])
             self.ax.set_ylim([0,self.ymax])
             self.ax.set_aspect('equal')
