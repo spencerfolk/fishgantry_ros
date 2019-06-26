@@ -97,6 +97,67 @@ void homeit(){
   unCountShared=0;
   }
 
+  void homeit_closedloop() {
+  float rvel_home = -0.5;//radians per second, homing speed.
+  inte_v = 0;
+
+   Serial.println("HOMING...");
+  while (digitalRead(lim1pin) == LOW) {
+    static long unCount;
+//    noInterrupts();
+  unCount = unCountShared;
+  microsnow = micros();
+    dtmicros = microsnow - oldmicros;
+    dt = dtmicros / (1000000.0);
+    oldmicros = microsnow;
+
+    posrad = (unCount * 2.0 * PI) / (cpr * 1.0);
+    
+    posm = posrad * m2rad;
+    velrads = (posrad - oldposrad) / dt;
+    oldposrad = posrad;
+
+    e_v = -2.0 - velrads;
+    inte_v = inte_v + dt * e_v;
+    fV = (kp*inte_v + kd * e_v)*255.0/battery_voltage; //this is the same controller as the PD on position, really
+
+    //compute the voltage signal
+//    fV = (kp * e + kd * dedt + ki * inte) * 255.0 / battery_voltage;
+    if (fV < -255) {
+      fV = -255;
+    }
+    else if (fV > 255) {
+      fV = 255;
+    }
+    //convert to counts (signed) -255 to 255 for analogWrite
+    V = int(fV);//fV * 255.0/battery_voltage;
+
+    if (V < 0) {
+      digitalWrite(in1pin, LOW);
+      digitalWrite(in2pin, HIGH);
+      //prevent axis from crashing.
+      if (!digitalRead(lim1pin)) {
+        analogWrite(enpin, abs(V));
+      }
+      else {
+        analogWrite(enpin, 0);
+      }
+    }
+    else {
+      digitalWrite(in1pin, HIGH);
+      digitalWrite(in2pin, LOW);
+      if (!digitalRead(lim2pin)) {
+        analogWrite(enpin, abs(V));
+      }
+      else {
+        analogWrite(enpin, 0);
+      }
+    }
+
+  }
+  unCountShared = 0;
+}
+
 void loop() {
 
   //encoder read
@@ -130,7 +191,7 @@ void loop() {
     //now compute the error
     if(command==-111.1){
       command=0;
-      homeit();
+      homeit_closedloop();
       Serial.println("Homing Command");
     }
     else if(command==-222.2){
