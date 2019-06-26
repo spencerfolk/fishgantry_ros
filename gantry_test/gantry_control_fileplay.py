@@ -39,11 +39,7 @@ class RecordedPath():
         if fname is not None:
             self.tailtheta = 0.
             self.tailangle = 0.
-            self.tailfreq = 0.
-            self.maxfreq = 2*2.*pi
-            self.tailfreq_tau = 0.5
-            self.pitchtau = 1.0
-            self.maxamp = 15.
+            
 
             self.xnow = 0.
             self.ynow = 0.
@@ -53,60 +49,17 @@ class RecordedPath():
             #data should come in as t,x,y,z
             self.data = loadtxt(fname)
             self.tdata = self.data[:,0]
-            b,a = butter(3,.03)
             self.xdata = self.data[:,1]
-            self.xdata = filtfilt(b,a,self.xdata)
-
             self.ydata = self.data[:,2]
-            self.ydata = filtfilt(b,a,self.ydata)
-
             self.zdata = self.data[:,3]
-            self.zdata = filtfilt(b,a,self.zdata)
-            #calculate pitch data from z vs. planar velocity
-            self.pitchdata = arctan2(-diff(self.zdata),sqrt(diff(self.xdata)**2+diff(self.ydata)**2))
-            self.pitchdata = append(array([self.pitchdata[0]]),self.pitchdata)
-            #constrain the pitch data so that the fish never goes below 0 or above a threhold
-            self.pitchdata[(self.pitchdata<0)]=0
-            self.pitchdata[(self.pitchdata>pi/4.)]=pi/4.
-            self.pitchdata = medfilt(self.pitchdata,13)
-            #now calculate the yaw angle of the fish. There will be "laps" we'll have to account for.
-            self.yawraw = arctan2(diff(self.ydata),diff(self.xdata))
-            self.yawraw = append(array(self.yawraw[0]),self.yawraw)
-            laps = 0
-            self.yawdata = zeros(len(self.yawraw))
-            self.yawdata[0] = self.yawraw[0]
+            self.pitchdata = self.data[:,4]
+            self.yawdata = self.data[:,5]
+            self.taildata = self.data[:,6]
             self.laps = 0
-
-            for k in range(1,len(self.yawraw)):
-                if(abs(self.yawraw[k]-self.yawraw[k-1])>=pi):
-                    self.laps -= sign(self.yawraw[k]-self.yawraw[k-1])
-                self.yawdata[k] = self.laps*2*pi+self.yawraw[k]
             # self.yawdata = medfilt(self.yawdata,5)
-
             #zero out the time just in case it does not start at zero
             self.tdata = self.tdata-self.tdata[0]
             self.tnow = 0.
-
-            self.U = sqrt((diff(self.xdata)/diff(self.tdata))**2+(diff(self.ydata)/diff(self.tdata))**2)
-            self.U = append(array(self.U[0]),self.U)
-            b,a = butter(3,.05)
-            self.U = filtfilt(b,a,self.U)
-            self.maxspeed = max(self.U)
-
-            self.zdot = diff(self.zdata)/diff(self.tdata)
-            self.zdot = append(array([self.zdot[0]]),self.zdot)
-
-            self.yawrate = diff(self.yawdata)/diff(self.tdata)
-            self.yawrate = append(array([self.yawrate[0]]),self.yawrate)
-
-            self.Udot = diff(self.U)/diff(self.tdata)
-            self.Udot = append(array([self.Udot[0]]),self.Udot)
-            self.Udotmax = max(self.Udot)
-
-            self.Unow,self.Udotnow = 0,0
-
-
-
 
         else:
             print "No valid file!"
@@ -119,32 +72,8 @@ class RecordedPath():
             self.znow = interp(self.tnow,self.tdata,self.zdata)
             # self.pitchnow = interp(self.tnow,self.tdata,self.pitchdata)
             self.yawnow = interp(self.tnow,self.tdata,self.yawdata)
-            self.Unow = interp(self.tnow,self.tdata,self.U)
-            self.Udotnow = interp(self.tnow,self.tdata,self.Udot)
-            self.zdotnow = interp(self.tnow,self.tdata,self.zdot)
-            self.yawratenow = interp(self.tnow,self.tdata,self.yawrate)
-
-            if(self.Udotnow)>0:
-                tailfreq_new = self.maxfreq*self.Udotnow/(self.Udotmax)*7.5
-            else:
-                tailfreq_new = 0
-            self.tailfreq = (1-dt/self.tailfreq_tau)*self.tailfreq+dt/self.tailfreq_tau*tailfreq_new
-            if(self.tailfreq<1):
-                self.tailangle += -dt/self.tailfreq_tau*self.tailangle
-            else:
-                self.tailtheta+=self.tailfreq*dt
-                self.tailangle = self.maxamp*sin(self.tailtheta) - 2*self.maxamp*self.yawratenow
-            if(self.Unow>.01):
-                pitchnew = -arctan2(self.zdotnow,self.Unow)
-            else:
-                pitchnew = 0
-
-            self.pitchnow = (1-dt/self.pitchtau)*self.pitchnow+dt/self.pitchtau*pitchnew
-
-
-
-
-
+            self.pitchnow = interp(self.tnow,self.tdata,self.pitchdata)
+            self.tailangle = interp(self.tnow,self.tdata,self.taildata)
         
         return self.xnow,self.ynow,self.znow,self.pitchnow,self.yawnow,self.tailangle
 
