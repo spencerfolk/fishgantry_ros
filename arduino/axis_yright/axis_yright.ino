@@ -41,11 +41,13 @@ float dedt = 0;
 float inte = 0;
 float olde = 0;
 
+float e_v = 0;
+float inte_v = 0;
 
 volatile long unCountShared = 0;
 
 
-int cpr = 64*100;
+int cpr = 20*64;
 
 float posrad = 0;
 float oldposrad = 0;
@@ -97,7 +99,8 @@ void homeit(){
   unCountShared=0;
   }
 
-  void homeit_closedloop() {
+
+void homeit_closedloop() {
   float rvel_home = -0.5;//radians per second, homing speed.
   inte_v = 0;
 
@@ -113,7 +116,7 @@ void homeit(){
 
     posrad = (unCount * 2.0 * PI) / (cpr * 1.0);
     
-    posm = posrad * m2rad;
+//    posm = posrad * m2rad;
     velrads = (posrad - oldposrad) / dt;
     oldposrad = posrad;
 
@@ -158,6 +161,7 @@ void homeit(){
   unCountShared = 0;
 }
 
+
 void loop() {
 
   //encoder read
@@ -199,7 +203,7 @@ void loop() {
       command=posrad;
       Serial.println("DISABLE COMMAND");
     }
-    else if(command==-333.3){
+    else if(command<=-333.3){
       menable = true;
       command=posrad;
       Serial.println("ENABLE COMMAND");
@@ -241,12 +245,23 @@ if(menable){
   if (V < 0) {
     digitalWrite(in1pin, LOW);
     digitalWrite(in2pin, HIGH);
-    analogWrite(enpin, abs(V));
+    //prevent axis from crashing.
+    if(!digitalRead(lim1pin)){
+      analogWrite(enpin, abs(V));
+    }
+    else{
+      analogWrite(enpin,0);
+    }
   }
   else {
     digitalWrite(in1pin, HIGH);
     digitalWrite(in2pin, LOW);
-    analogWrite(enpin, abs(V));
+    if(!digitalRead(lim2pin)){
+      analogWrite(enpin, abs(V));
+    }
+    else{
+      analogWrite(enpin,0);
+    }
   }
 }
 else{
@@ -284,8 +299,8 @@ else{
 void requestEvent()
 {
   //noInterrupts();
-  I2C_writeAnything(posrad/m2rad);
   I2C_writeAnything(command);
+  I2C_writeAnything(posrad/m2rad);
   //interrupts();
 }
 void receiveEvent(int howMany){
