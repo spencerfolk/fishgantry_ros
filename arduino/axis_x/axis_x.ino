@@ -104,13 +104,13 @@ void homeit() {
 }
 
 void homeit_closedloop() {
-  float rvel_home = -0.05*m2rad;//meters per second, homing speed.
+  float rvel_home = -0.5;//radians per second, homing speed.
   inte_v = 0;
 
-           Serial.println("HOMING...");
-  while (digitalRead(lim1pin == LOW)) {
+   Serial.println("HOMING...");
+  while (digitalRead(lim1pin) == LOW) {
     static long unCount;
-  //  noInterrupts();
+//    noInterrupts();
   unCount = unCountShared;
   microsnow = micros();
     dtmicros = microsnow - oldmicros;
@@ -118,15 +118,17 @@ void homeit_closedloop() {
     oldmicros = microsnow;
 
     posrad = (unCount * 2.0 * PI) / (cpr * 1.0);
+    
     posm = posrad * m2rad;
     velrads = (posrad - oldposrad) / dt;
+    oldposrad = posrad;
 
-    e_v = rvel_home - velrads;
+    e_v = -2.0 - velrads;
     inte_v = inte_v + dt * e_v;
-    fV = kp*inte_v + kd * e_v; //this is the same controller as the PD on position, really
+    fV = (kp*inte_v + kd * e_v)*255.0/battery_voltage; //this is the same controller as the PD on position, really
 
     //compute the voltage signal
-    fV = (kp * e + kd * dedt + ki * inte) * 255.0 / battery_voltage;
+//    fV = (kp * e + kd * dedt + ki * inte) * 255.0 / battery_voltage;
     if (fV < -255) {
       fV = -255;
     }
@@ -159,6 +161,7 @@ void homeit_closedloop() {
     }
 
   }
+  unCountShared = 0;
 }
 
 void loop() {
