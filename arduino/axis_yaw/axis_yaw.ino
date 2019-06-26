@@ -41,6 +41,9 @@ float dedt = 0;
 float inte = 0;
 float olde = 0;
 
+float e_v = 0;
+float inte_v =0;
+
 
 volatile long unCountShared = 0;
 
@@ -113,7 +116,7 @@ void homeit_closedloop() {
 
     posrad = (unCount * 2.0 * PI) / (cpr * 1.0);
     
-    posm = posrad * m2rad;
+//    posm = posrad * m2rad;
     velrads = (posrad - oldposrad) / dt;
     oldposrad = posrad;
 

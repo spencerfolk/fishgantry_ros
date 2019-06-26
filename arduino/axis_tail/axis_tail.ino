@@ -16,6 +16,9 @@ float servocommand = 0.0;
 boolean closedloop = true;
 boolean menable = true;
 
+float TILTOFFSET = 70;
+float fixedcommand = 0;
+
 float kp = 50.0;
 float ki = 0.0;
 float kd = 2.0;
@@ -40,6 +43,8 @@ float dedt = 0;
 float inte = 0;
 float olde = 0;
 
+float e_v = 0;
+float inte_v = 0;
 
 volatile long unCountShared = 0;
 
@@ -110,7 +115,7 @@ void homeit_closedloop() {
 
     posrad = (unCount * 2.0 * PI) / (cpr * 1.0);
     
-    posm = posrad * m2rad;
+//    posm = posrad * m2rad;
     velrads = (posrad - oldposrad) / dt;
     oldposrad = posrad;
 
@@ -183,22 +188,24 @@ void loop() {
      //now compute the error
     if(command==-111.1){
       command=0;
-      homeit_closedloop();
+      homeit();
       Serial.println("Homing Command");
     }
     else if(command==-222.2){
       menable = false;
-      command=posrad;
+      command=(TILTOFFSET*PI/180.0-posrad);
       Serial.println("DISABLE COMMAND");
     }
     else if(command<=-333.3){
       menable = true;
-      command=posrad;
+      command=(TILTOFFSET*PI/180.0-posrad);
       Serial.println("ENABLE COMMAND");
     }
+
+    fixedcommand = (TILTOFFSET*PI/180.0-command);
     
     //now compute the error
-    e = command - posrad;
+    e = fixedcommand - posrad;
     //error derivative
     dedt = (e - olde) / dt;
     //integral of error

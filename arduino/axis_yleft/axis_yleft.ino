@@ -43,6 +43,9 @@ float dedt = 0;
 float inte = 0;
 float olde = 0;
 
+float e_v = 0;
+float inte_v = 0;
+
 
 volatile long unCountShared = 0;
 
@@ -101,7 +104,7 @@ void homeit(){
 
 
 void homeit_closedloop() {
-  float rvel_home = -0.5;//radians per second, homing speed.
+  float rvel_home = 0.5;//radians per second, homing speed.
   inte_v = 0;
 
    Serial.println("HOMING...");
@@ -116,11 +119,11 @@ void homeit_closedloop() {
 
     posrad = (unCount * 2.0 * PI) / (cpr * 1.0);
     
-    posm = posrad * m2rad;
+//    posm = posrad * m2rad;
     velrads = (posrad - oldposrad) / dt;
     oldposrad = posrad;
 
-    e_v = -2.0 - velrads;
+    e_v = 2.0 - velrads;
     inte_v = inte_v + dt * e_v;
     fV = (kp*inte_v + kd * e_v)*255.0/battery_voltage; //this is the same controller as the PD on position, really
 
