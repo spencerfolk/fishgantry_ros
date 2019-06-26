@@ -19,7 +19,7 @@ boolean closedloop = true;
 boolean menable = true;// this is the motor enable
 
 //pulley radius is .01165 meters (.91/2)
-float m2rad = 1.0/.01165;
+float m2rad = 1.0 / .01165;
 
 float kp = 50.0;
 float ki = 0.0;
@@ -30,7 +30,7 @@ float oldoldcommand = 0;
 float battery_voltage = 4.0;
 float posm = 0;
 float sinfreq = 2;
-float sinamp = PI/2;
+float sinamp = PI / 2;
 float sinangle = 0;
 
 unsigned long microsnow = 0;
@@ -43,11 +43,15 @@ float dedt = 0;
 float inte = 0;
 float olde = 0;
 
+float e_v = 0;
+float inte_v = 0;
+
+
 
 volatile long unCountShared = 0;
 
 
-int cpr = 64*19;
+int cpr = 64 * 19;
 
 float posrad = 0;
 float oldposrad = 0;
@@ -69,55 +73,113 @@ void setup() {
   Wire.onRequest(requestEvent);
   Wire.onReceive(receiveEvent);
   // put your setup code here, to run once:
-//  Serial.begin(115200);
-delayMicroseconds(1000);
+  //  Serial.begin(115200);
+  delayMicroseconds(1000);
   pinMode(enpin, OUTPUT);
   delayMicroseconds(1000);
   pinMode(in1pin, OUTPUT);
   delayMicroseconds(1000);
   pinMode(in2pin, OUTPUT);
-  pinMode(lim1pin,INPUT);
-  pinMode(lim2pin,INPUT);
-  pinMode(CHANNEL_A_PIN,INPUT_PULLUP);
-  pinMode(CHANNEL_B_PIN,INPUT_PULLUP);
+  pinMode(lim1pin, INPUT);
+  pinMode(lim2pin, INPUT);
+  pinMode(CHANNEL_A_PIN, INPUT_PULLUP);
+  pinMode(CHANNEL_B_PIN, INPUT_PULLUP);
   //attach the interrupts
   attachInterrupt(2, channelA, CHANGE);
   attachInterrupt(3, channelB, CHANGE);
 
 }
 
-void homeit(){
-    Serial.println("HOMING...");
+void homeit() {
+  Serial.println("HOMING...");
   //limit lim1 is pin 10, limit lim2 is pin 8.
   //home the axis
-  while(digitalRead(lim1pin)==LOW){
+  while (digitalRead(lim1pin) == LOW) {
     digitalWrite(in1pin, LOW);
     digitalWrite(in2pin, HIGH);
     analogWrite(enpin, 200);
   }
-  
-  unCountShared=0;
+
+  unCountShared = 0;
+}
+
+void homeit_closedloop() {
+  float rvel_home = -0.05;//meters per second, homing speed.
+  inte_v = 0;
+
+           Serial.println("HOMING...");
+  while (digitalRead(lim1pin == LOW)) {
+    static long unCount;
+  //  noInterrupts();
+  unCount = unCountShared;
+  microsnow = micros();
+    dtmicros = microsnow - oldmicros;
+    dt = dtmicros / (1000000.0);
+    oldmicros = microsnow;
+
+    posrad = (unCount * 2.0 * PI) / (cpr * 1.0);
+    posm = posrad * m2rad;
+    velrads = (posrad - oldposrad) / dt;
+
+    e_v = rvel_home - velrads;
+    inte_v = inte_v + dt * e_v;
+    fV = kp*inte_v + kd * e_v; //this is the same controller as the PD on position, really
+
+    //compute the voltage signal
+    fV = (kp * e + kd * dedt + ki * inte) * 255.0 / battery_voltage;
+    if (fV < -255) {
+      fV = -255;
+    }
+    else if (fV > 255) {
+      fV = 255;
+    }
+    //convert to counts (signed) -255 to 255 for analogWrite
+    V = int(fV);//fV * 255.0/battery_voltage;
+
+    if (V < 0) {
+      digitalWrite(in1pin, LOW);
+      digitalWrite(in2pin, HIGH);
+      //prevent axis from crashing.
+      if (!digitalRead(lim1pin)) {
+        analogWrite(enpin, abs(V));
+      }
+      else {
+        analogWrite(enpin, 0);
+      }
+    }
+    else {
+      digitalWrite(in1pin, HIGH);
+      digitalWrite(in2pin, LOW);
+      if (!digitalRead(lim2pin)) {
+        analogWrite(enpin, abs(V));
+      }
+      else {
+        analogWrite(enpin, 0);
+      }
+    }
+
   }
+}
 
 void loop() {
 
   //encoder read
   static long unCount;
-//  noInterrupts();
+  //  noInterrupts();
   unCount = unCountShared;
-//  interrupts();
+  //  interrupts();
 
-//  if(sendFlag){
-//  //noInterrupts();
-//  I2C_writeAnything(posrad/m2rad);
-//  I2C_writeAnything(command);
-//  //interrupts();
-//  sendFlag = false;
-//  }
-//  if(receiveFlag){
-//    I2C_readAnything(command);
-//    receiveFlag = false;
-//  }
+  //  if(sendFlag){
+  //  //noInterrupts();
+  //  I2C_writeAnything(posrad/m2rad);
+  //  I2C_writeAnything(command);
+  //  //interrupts();
+  //  sendFlag = false;
+  //  }
+  //  if(receiveFlag){
+  //    I2C_readAnything(command);
+  //    receiveFlag = false;
+  //  }
 
   //timing
   microsnow = micros();
@@ -126,7 +188,7 @@ void loop() {
   oldmicros = microsnow;
 
   posrad = (unCount * 2.0 * PI) / (cpr * 1.0);
-  posm = posrad*m2rad;
+  posm = posrad * m2rad;
   velrads = (posrad - oldposrad) / dt;
 
 
@@ -143,27 +205,27 @@ void loop() {
     //command = newcommand;
     //Serial.println(command);
     //now compute the error
-    if(command==-111.1){
-      command=0;
+    if (command == -111.1) {
+      command = 0;
       Serial.println("Homing Command");
-      homeit();
+      homeit_closedloop();
     }
-    else if(command==-222.2){
+    else if (command == -222.2) {
       menable = false;
       //command=posrad;
       Serial.println("DISABLE COMMAND");
     }
-    else if(command<=-333){
+    else if (command <= -333) {
       menable = true;
       //command=posrad;
       Serial.println("ENABLE COMMAND");
     }
 
-    
+
 
     //command is in meters, so we need to convert before computing error
-    
-    e = command*m2rad - posrad;//command*m2rad should give command in radians.
+
+    e = command * m2rad - posrad; //command*m2rad should give command in radians.
     //error derivative
     dedt = (e - olde) / dt;
     //integral of error
@@ -171,16 +233,16 @@ void loop() {
     //store old error value
     olde = e;
     //compute the voltage signal
-    fV = (kp * e + kd * dedt + ki * inte)*255.0/battery_voltage;
-    if(fV<-255){
-      fV=-255;
+    fV = (kp * e + kd * dedt + ki * inte) * 255.0 / battery_voltage;
+    if (fV < -255) {
+      fV = -255;
     }
-    else if(fV>255){
-      fV=255;
+    else if (fV > 255) {
+      fV = 255;
     }
     //convert to counts (signed) -255 to 255 for analogWrite
     V = int(fV);//fV * 255.0/battery_voltage;
-    
+
   }
 
 
@@ -193,74 +255,74 @@ void loop() {
 
 
 
-if(menable){
-  if (V < 0) {
-    digitalWrite(in1pin, LOW);
-    digitalWrite(in2pin, HIGH);
-    //prevent axis from crashing.
-    if(!digitalRead(lim1pin)){
-      analogWrite(enpin, abs(V));
+  if (menable) {
+    if (V < 0) {
+      digitalWrite(in1pin, LOW);
+      digitalWrite(in2pin, HIGH);
+      //prevent axis from crashing.
+      if (!digitalRead(lim1pin)) {
+        analogWrite(enpin, abs(V));
+      }
+      else {
+        analogWrite(enpin, 0);
+      }
     }
-    else{
-      analogWrite(enpin,0);
+    else {
+      digitalWrite(in1pin, HIGH);
+      digitalWrite(in2pin, LOW);
+      if (!digitalRead(lim2pin)) {
+        analogWrite(enpin, abs(V));
+      }
+      else {
+        analogWrite(enpin, 0);
+      }
     }
   }
   else {
-    digitalWrite(in1pin, HIGH);
-    digitalWrite(in2pin, LOW);
-    if(!digitalRead(lim2pin)){
-      analogWrite(enpin, abs(V));
-    }
-    else{
-      analogWrite(enpin,0);
-    }
+    analogWrite(enpin, 0);
   }
-}
-else{
-  analogWrite(enpin,0);
-}
-//
-//  Serial.print(dt, 5);
-//  Serial.print("\t");
-//  Serial.print(V);
-//  Serial.print("\t");
-//  Serial.print(potval);
-//  Serial.print("\t");
-//  Serial.print(posrad, 5);
-//
-//  if(closedloop){
-//  Serial.print("\t");
-//  Serial.print(e, 3);
-//  Serial.print("\t");
-//  Serial.print(dedt, 3);
-//  Serial.print("\t");
-//  Serial.print(inte, 3);
-//  }
-//
-//  Serial.print(menable);
-//
-//
-//  Serial.println();
+  //
+  //  Serial.print(dt, 5);
+  //  Serial.print("\t");
+  //  Serial.print(V);
+  //  Serial.print("\t");
+  //  Serial.print(potval);
+  //  Serial.print("\t");
+  //  Serial.print(posrad, 5);
+  //
+  //  if(closedloop){
+  //  Serial.print("\t");
+  //  Serial.print(e, 3);
+  //  Serial.print("\t");
+  //  Serial.print(dedt, 3);
+  //  Serial.print("\t");
+  //  Serial.print(inte, 3);
+  //  }
+  //
+  //  Serial.print(menable);
+  //
+  //
+  //  Serial.println();
 
   delayMicroseconds(1000);
 }
 
 
-  // function that executes whenever data is requested by master
+// function that executes whenever data is requested by master
 // this function is registered as an event, see setup()
 void requestEvent()
 {
   I2C_writeAnything(command);
-  I2C_writeAnything(posrad/m2rad);
-  
- //sendFlag = true;
+  I2C_writeAnything(posrad / m2rad);
+
+  //sendFlag = true;
 }
-void receiveEvent(int howMany){
+void receiveEvent(int howMany) {
   if (howMany >= (sizeof command))
-   {
-   I2C_readAnything (command);    
-   }  // end if have enough data
-//receiveFlag = true;
+  {
+    I2C_readAnything (command);
+  }  // end if have enough data
+  //receiveFlag = true;
 }
 
 // simple interrupt service routine
