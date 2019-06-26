@@ -104,7 +104,7 @@ void homeit() {
 }
 
 void homeit_closedloop() {
-  float rvel_home = -0.05;//meters per second, homing speed.
+  float rvel_home = -0.05*m2rad;//meters per second, homing speed.
   inte_v = 0;
 
            Serial.println("HOMING...");
