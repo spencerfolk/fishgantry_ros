@@ -29,8 +29,9 @@ class FishGantry():
     self.command.pose.orientation.z = 0
     self.command.pose.orientation.x = 0
     self.tailcommand = 0;
+    self.rollcommand,self.pitchcommand,self.yawcommand=0,0,0
 
-    self.br = tf.transformBroadcaster()
+    self.br = tf.TransformBroadcaster()
 
     rospy.Service('enable_motors',std_srvs.srv.Trigger,self.enable_motors)
     rospy.Service('disable_motors',std_srvs.srv.Trigger,self.disable_motors)
@@ -38,7 +39,7 @@ class FishGantry():
 
 
     #main loop runs on a timer, which ensures that we get timely updates from the gantry arduino
-    rospy.Timer(rospy.Duration(.05),self.loop,oneshot=False) #timer callback (math) allows filter to run at constant time
+    rospy.Timer(rospy.Duration(.01),self.loop,oneshot=False) #timer callback (math) allows filter to run at constant time
     #subscribers (inputs)
     #construct the file name for our text output file
     rospack = rospkg.RosPack()
@@ -55,18 +56,39 @@ class FishGantry():
     self.command.pose.orientation.z = data.pose.orientation.z
     self.command.pose.orientation.x = data.pose.orientation.x
 
-    roll,pitch,yaw = tf.transformations.euler_from_quaternion(self.command.orientation)
+    self.rollcommand,self.pitchcommand,self.yawcommand = tf.transformations.euler_from_quaternion(self.command.orientation)
 
     #print "received: "+str(self.command.pose.position.x)
 
   def enable_motors(self,event):
-
-  def loop(self,event):
-    serstring = '!'+"{0:.3f}".format(self.command.pose.position.x)+','+"{0:.3f}".format(-self.command.pose.position.y)+','+"{0:.3f}".format(self.command.pose.position.z)+','+"{0:.3f}".format(pitch)+','+"{0:.3f}".format(yaw)+','+"{0:.3f}".format(self.tailcommand)+'\r\n'
+    encommand = -333.30
+    serstring = '!'+"{0:.3f}".format(encommand)+','+"{0:.3f}".format(encommand)+','+"{0:.3f}".format(encommand)+','+"{0:.3f}".format(encommand)+','+"{0:.3f}".format(encommand)+','+"{0:.3f}".format(0)+'\r\n'
     print "sending: "+serstring
     self.ser.write(serstring)
     line = self.ser.readline()
     print line
+
+  def disable_motors(self,event):
+    discommand = -333.30
+    serstring = '!'+"{0:.3f}".format(discommand)+','+"{0:.3f}".format(discommand)+','+"{0:.3f}".format(discommand)+','+"{0:.3f}".format(discommand)+','+"{0:.3f}".format(discommand)+','+"{0:.3f}".format(0)+'\r\n'
+    print "sending: "+serstring
+    self.ser.write(serstring)
+    line = self.ser.readline()
+    print line
+  def home(self,event):
+    homecommand = -333.30
+    serstring = '!'+"{0:.3f}".format(homecommand)+','+"{0:.3f}".format(homecommand)+','+"{0:.3f}".format(homecommand)+','+"{0:.3f}".format(homecommand)+','+"{0:.3f}".format(homecommand)+','+"{0:.3f}".format(0)+'\r\n'
+    print "sending: "+serstring
+    self.ser.write(serstring)
+    line = self.ser.readline()
+    print line
+
+  def loop(self,event):
+    serstring = '!'+"{0:.3f}".format(self.command.pose.position.x)+','+"{0:.3f}".format(-self.command.pose.position.y)+','+"{0:.3f}".format(self.command.pose.position.z)+','+"{0:.3f}".format(self.pitchcommand)+','+"{0:.3f}".format(self.yawcommand)+','+"{0:.3f}".format(self.tailcommand)+'\r\n'
+    # print "sending: "+serstring
+    self.ser.write(serstring)
+    line = self.ser.readline()
+    # print line
     linestrip = line.strip('\r\n')
     linesplit = line.split()
     if len(linesplit)>=3:
