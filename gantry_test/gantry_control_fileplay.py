@@ -55,6 +55,7 @@ class RecordedPath():
             self.pitchdata = self.data[:,4]
             self.yawdata = self.data[:,5]
             self.taildata = self.data[:,6]
+            self.lapsdata = fix(self.yawdata/(2*pi))
             self.laps = 0
             # self.yawdata = medfilt(self.yawdata,5)
             #zero out the time just in case it does not start at zero
@@ -74,6 +75,8 @@ class RecordedPath():
             self.yawnow = interp(self.tnow,self.tdata,self.yawdata)
             self.pitchnow = interp(self.tnow,self.tdata,self.pitchdata)
             self.tailangle = interp(self.tnow,self.tdata,self.taildata)
+            self.laps = fix(interp(self.tnow,self.tdata,self.lapsdata))
+            print self.laps
         
         return self.xnow,self.ynow,self.znow,self.pitchnow,self.yawnow,self.tailangle
 
@@ -222,8 +225,9 @@ class Window():
 
         Ta=StringVar()
         Ta.set("yaw command")
-        self.sa = Scale(self.master,from_=0,to=self.sliderscale,orient=HORIZONTAL,length=200)
+        self.sa = Scale(self.master,from_=-self.sliderscale,to=self.sliderscale,orient=HORIZONTAL,length=200)
         self.sa.pack(in_=self.lside,side="top")
+        self.sa.set(0)
         La=Label(self.master, textvariable=Ta, height=1)
         La.pack(in_=self.lside,side="top")
 
@@ -285,6 +289,8 @@ class Window():
         self.qbutton = Button(master=self.master, text="Quit", command=self._quit)
         self.qbutton.pack(in_=self.mside,side="bottom")
 
+        self.path = None
+
         #now deal with the utilities: drop-down for which axis to look at, refresh rate, buffer size, etc.
 
         s=StringVar()
@@ -328,7 +334,7 @@ class Window():
         l=Label(self.master, textvariable=s, height=1)
         l.pack(in_=self.mside,side="left")
         SV = StringVar()
-        SV.set("12.6")
+        SV.set("6.28")
         self.Eamax =Entry(self.master,textvariable=SV,width=5)
         self.Eamax.pack(in_=self.mside,side="left")  
         
@@ -361,7 +367,7 @@ class Window():
         #now set the x and y sliders accordingly
         self.sx.set(x*self.sliderscale/self.xmax)
         self.sy.set(y*self.sliderscale/self.ymax)
-        self.sa.set(yaw*self.sliderscale/self.amax)
+        self.sa.set((yaw-2*pi*self.path.laps)*(self.sliderscale)/self.amax)
         self.sz.set(z*self.sliderscale/self.zmax)
         self.st.set(tail*self.sliderscale/90.0)
         self.sp.set(pitch*self.sliderscale/self.pmax)
@@ -379,7 +385,11 @@ class Window():
         #first, get the value from each slider
         controlcommand = False
         if(not self.sendHome):
-            c1,c2,c3,c4,c5,c6 = float(self.sx.get())*self.xmax/self.sliderscale,float(self.sy.get())*self.ymax/self.sliderscale,float(self.sz.get())*self.zmax/self.sliderscale,float(self.sp.get())*self.pmax/self.sliderscale,(float(self.sa.get()))*self.amax/self.sliderscale,float(self.st.get())
+            if self.path is not None:
+                c1,c2,c3,c4,c5,c6 = float(self.sx.get())*self.xmax/self.sliderscale,float(self.sy.get())*self.ymax/self.sliderscale,float(self.sz.get())*self.zmax/self.sliderscale,float(self.sp.get())*self.pmax/self.sliderscale,((float(self.sa.get()))*self.amax/(self.sliderscale))+2*pi*self.path.laps,float(self.st.get())
+            else:
+                c1,c2,c3,c4,c5,c6 = float(self.sx.get())*self.xmax/self.sliderscale,float(self.sy.get())*self.ymax/self.sliderscale,float(self.sz.get())*self.zmax/self.sliderscale,float(self.sp.get())*self.pmax/self.sliderscale,((float(self.sa.get()))*self.amax/(self.sliderscale)),float(self.st.get())
+
         else:
             controlcommand=True
             c1,c2,c3,c4,c5,c6 = -111.1,-111.1,-111.1,-111.1,-111.1,0

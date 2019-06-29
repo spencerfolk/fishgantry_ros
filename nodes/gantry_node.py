@@ -10,6 +10,7 @@ import datetime
 import rospkg
 import nav_msgs
 from geometry_msgs.msg import PoseStamped
+import std_srvs.srv
 
 class FishGantry():
   def __init__(self):
@@ -29,6 +30,13 @@ class FishGantry():
     self.command.pose.orientation.x = 0
     self.tailcommand = 0;
 
+    self.br = tf.transformBroadcaster()
+
+    rospy.Service('enable_motors',std_srvs.srv.Trigger,self.enable_motors)
+    rospy.Service('disable_motors',std_srvs.srv.Trigger,self.disable_motors)
+    rospy.Service('home_axes',std_srvs.srv.Trigger,self.home)
+
+
     #main loop runs on a timer, which ensures that we get timely updates from the gantry arduino
     rospy.Timer(rospy.Duration(.05),self.loop,oneshot=False) #timer callback (math) allows filter to run at constant time
     #subscribers (inputs)
@@ -47,10 +55,14 @@ class FishGantry():
     self.command.pose.orientation.z = data.pose.orientation.z
     self.command.pose.orientation.x = data.pose.orientation.x
 
+    roll,pitch,yaw = tf.transformations.euler_from_quaternion(self.command.orientation)
+
     #print "received: "+str(self.command.pose.position.x)
 
+  def enable_motors(self,event):
+
   def loop(self,event):
-    serstring = '!'+"{0:.2f}".format(13.55*self.command.pose.position.x)+','+"{0:.2f}".format(-self.command.pose.orientation.z)+','+"{0:.2f}".format(self.command.pose.position.z)+','+"{0:.2f}".format(self.command.pose.orientation.x)+','+"{0:.2f}".format(self.tailcommand*180/3.14)+'\r\n'
+    serstring = '!'+"{0:.3f}".format(self.command.pose.position.x)+','+"{0:.3f}".format(-self.command.pose.position.y)+','+"{0:.3f}".format(self.command.pose.position.z)+','+"{0:.3f}".format(pitch)+','+"{0:.3f}".format(yaw)+','+"{0:.3f}".format(self.tailcommand)+'\r\n'
     print "sending: "+serstring
     self.ser.write(serstring)
     line = self.ser.readline()
@@ -61,11 +73,16 @@ class FishGantry():
       #print shotslast, arduinonumshots,shotslast==(arduinonumshots+1)
       
       try:
-
         msg = PoseStamped()
         msg.header.stamp = rospy.Time.now()
         msg.pose.position.x = float(linesplit[0])
         msg.pose.position.y = float(linesplit[1])
+        msg.pose.position.z = float(linesplit[2])
+        pitchback = float(linesplit[3])
+        yawback = float(linesplit[4])
+
+        quat = tf.transformations.quaternion_from_euler(0,pitchback,yawback)
+
         #msg.arduino_time = float(linesplit[2])
         #msg.tailfreq= float(linesplit[3])
         #msg.tailamp = float(linesplit[4])
