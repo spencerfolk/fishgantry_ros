@@ -83,11 +83,14 @@ class RecordedPath():
 
 class Window():
     def __init__(self, master=None):
-        #Frame.__init__(self, master)    
+        #Frame.__init__(self, master)   
+        self.ardt=0 
         self.running = False     
         self.delay = 10 #milliseconds
         self.refreshdelay = 100
         self.tnow = time.time()
+        self.ptnow = time.time()
+        self.oldt = time.time()
         self.starttime =self.tnow
         self.sendHome = False
         self.disable = 0
@@ -344,9 +347,11 @@ class Window():
 
     def setpath(self):
         self.pathActive = not self.pathActive
+        self.ptnow = time.time()
         #get the a and b for this ellipse, and update the path geometry
         if(self.pathActive):
             self.path = RecordedPath(self.fname,self.delay/1000.0)
+            self.oldt = self.tnow
             self.path.update(self.delay/1000.0)
             print("updated path geometry")
         #update the path x and y positions
@@ -355,6 +360,7 @@ class Window():
         else:
             self.Pbutton.config(text="Disable File Playback")
             self.pathbutton.after(self.delay,self.pathloop)
+
         
 
 
@@ -362,7 +368,10 @@ class Window():
     def pathloop(self):
         #if path is active, update the x and y commands
         #x,y,yaw,z,pitch,tail = self.path.update(self.delay/1000.0,self.sU.get()/1000.0)
-        x,y,z,pitch,yaw,tail = self.path.update(self.delay/1000.0)
+        self.ptnow = time.time()
+        x,y,z,pitch,yaw,tail = self.path.update(self.tnow-self.oldt)
+        self.oldt = self.tnow
+        print ("current path time= "+str(self.path.tnow))
         #print(x,y,yaw)
         #now set the x and y sliders accordingly
         self.sx.set(x*self.sliderscale/self.xmax)
@@ -478,7 +487,8 @@ class Window():
         self.f5.append(f5)
         
         #write to file
-        fstring = str(c1)+'\t'+str(f1)+'\t'+str(c2)+'\t'+str(f2)+'\t'+str(c3)+'\t'+str(f3)+'\t'+str(c4)+'\t'+str(f4)+'\t'+str(c5)+'\t'+str(f5)+'\t'+str(c6)+'\r\n'
+        fstring = str(self.tnow)+'\t'+str(self.ardt)+'\t'+str(c1)+'\t'+str(f1)+'\t'+str(c2)+'\t'+str(f2)+'\t'+str(c3)+'\t'+str(f3)+'\t'+str(c4)+'\t'+str(f4)+'\t'+str(c5)+'\t'+str(f5)+'\t'+str(c6)+'\r\n'
+        # fstring = str(c1)+'\t'+str(f1)+'\t'+str(c2)+'\t'+str(f2)+'\t'+str(c3)+'\t'+str(f3)+'\t'+str(c4)+'\t'+str(f4)+'\t'+str(c5)+'\t'+str(f5)+'\t'+str(c6)+'\r\n'
         self.f.write(fstring)
 
         self.tvec.append(self.tnow)
