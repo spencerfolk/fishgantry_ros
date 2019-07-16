@@ -69,7 +69,7 @@ class FishGantry():
     self.command.pose.orientation.w = data.pose.orientation.w
 
     self.rollcommand,self.pitchcommand,self.yawcommand = tf.transformations.euler_from_quaternion([self.command.pose.orientation.x,self.command.pose.orientation.y,self.command.pose.orientation.z,self.command.pose.orientation.w])
-    rospy.logwarn(str(self.yawcommand))
+    # rospy.logwarn(str(self.yawcommand))
     #self.command.pose.orientation.roll,self.command.pose.orientation.pitch,self.command.pose.orientation.yaw#
     #print "received: "+str(self.command.pose.position.x)
 

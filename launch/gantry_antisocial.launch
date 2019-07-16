@@ -1,0 +1,12 @@
+<launch>
+
+<node type="publish_camera_transforms.py" pkg="fishtracker" name="CameraPub"/>
+
+<node type="rviz" pkg="rviz" name="rviz" args="-d $(find fishgantry_ros)/rviz/gantry.rviz"/>
+
+<node type="gantry_node.py" pkg="fishgantry_ros" name="gantry_control"/>
+
+<!-- <node type="rqt_gui" pkg="rqt_gui" name="rqt_gui" /> -->
+<node type="fishbrain_node.py" pkg="fishgantry_ros" name="fishbrain"/>
+
+</launch>

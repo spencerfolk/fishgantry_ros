@@ -80,9 +80,9 @@ class PersistentFish():
         # self.updateGeometry(xmax,ymax,zmax)
 
     def updateGeometry(self,xmax,ymax,zmax):
-        self.x = xmax/2
-        self.y = ymax/2
-        self.z = zmax/2
+        self.x = 0#xmax/2
+        self.y = 0#ymax/2
+        self.z = 0#zmax/2
 
         self.bound_X = xmax
         self.bound_Y = ymax
@@ -391,7 +391,7 @@ class PersistentFish():
 #        print(str(self.psi)+'\n')
 
         # return self.Omega,self.U,self.x,self.y,self.psi,self.S
-        return self.x,self.y,-self.z,self.pitchnow,self.psi,self.tailangle
+        return self.x,self.y,-self.z,-self.pitchnow,self.psi,self.tailangle
 
 class MarkovChain(PersistentFish):
     # Inherits a persistentfish and runs a 2-state Markov chain with time-dependent transition matrices.
