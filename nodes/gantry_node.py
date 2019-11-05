@@ -241,7 +241,7 @@ class FishGantry():
     zmarker.pose.orientation.z = tempquat[2]
     zmarker.pose.position.x = 0
     zmarker.pose.position.y = 0
-    zmarker.pose.position.z = 0
+    zmarker.pose.position.z = -.929*.0254
     # zmarker.color.r = .5
     # zmarker.color.g = .8
     # zmarker.color.b = .5
@@ -287,11 +287,11 @@ class FishGantry():
     #publish transform from x motion to yaw motion
     self.br.sendTransform((0,0,0),tf.transformations.quaternion_from_euler(0,0,self.yawcommand),rospy.Time.now(),'/robot_yaw_cmd','/robot_x_cmd')
     #publish transform from yaw motion to z motion
-    self.br.sendTransform((0,0,self.command.pose.position.z+.929*.0254),tf.transformations.quaternion_from_euler(0,0,0),rospy.Time.now(),'/robot_z_cmd','/robot_yaw_cmd')
+    self.br.sendTransform((0,0,self.command.pose.position.z-.929*.0254),tf.transformations.quaternion_from_euler(0,0,0),rospy.Time.now(),'/robot_z_cmd','/robot_yaw_cmd')
     #publish transform from z motion to tilt motion
     self.br.sendTransform((0,0,0),tf.transformations.quaternion_from_euler(0,self.pitchcommand,0),rospy.Time.now(),'/robot_pitch_cmd','/robot_z_cmd')
 
-
+#self.command.pose.position.z-.929*.0254
 
 
       
