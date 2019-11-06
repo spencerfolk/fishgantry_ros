@@ -110,13 +110,17 @@ class FishGantry():
       try:
         msg = PoseStamped()
         msg.header.stamp = rospy.Time.now()
-        msg.pose.position.x = float(linesplit[0])
-        msg.pose.position.y = float(linesplit[1])
-        msg.pose.position.z = float(linesplit[2])
+        msg.pose.position.x = float(linesplit[1])
+        msg.pose.position.y = float(linesplit[2])
+        msg.pose.position.z = float(linesplit[3])
         pitchback = float(linesplit[3])
         yawback = float(linesplit[4])
 
         quat = tf.transformations.quaternion_from_euler(0,pitchback,yawback)
+        msg.pose.orientation.x=quat[0]
+        msg.pose.orientation.y=quat[1]
+        msg.pose.orientation.z=quat[2]
+        msg.pose.orientation.w=quat[3]
 
         #msg.arduino_time = float(linesplit[2])
         #msg.tailfreq= float(linesplit[3])

@@ -12,8 +12,9 @@ import nav_msgs
 from geometry_msgs.msg import PoseStamped,Pose
 from visualization_msgs.msg import Marker
 import std_srvs.srv
-from fishgantry_ros.srv import setState
+from fishgantry_ros.srv import setState,setStateResponse
 from numpy import *
+import time
 
 from PTW import *
 from PTWSocial import *
@@ -49,7 +50,7 @@ class FishBrain():
         self.teleopposesub = rospy.Subscriber("/fishgantry/teleoppose",PoseStamped,self.teleopposecallback,queue_size=1)
 
         self.restingpose = PoseStamped();
-        self.restingpose.pose.position.x=0
+        self.restingpose.pose.position.x=0.2
         self.restingpose.pose.position.y=0
         self.restingpose.pose.position.z=0
         self.restingpose.pose.orientation.x=0
@@ -58,7 +59,22 @@ class FishBrain():
         self.restingpose.pose.orientation.w=0
 
         self.feedbackPose = PoseStamped()
+        self.feedbackPose.pose.position.x=0
+        self.feedbackPose.pose.position.y=0
+        self.feedbackPose.pose.position.z=0
+        self.feedbackPose.pose.orientation.x=0
+        self.feedbackPose.pose.orientation.y=0
+        self.feedbackPose.pose.orientation.z=0
+        self.feedbackPose.pose.orientation.w=0
+
         self.teleoppose = PoseStamped()
+        self.teleoppose.pose.position.x=0
+        self.teleoppose.pose.position.y=0
+        self.teleoppose.pose.position.z=0
+        self.teleoppose.pose.orientation.x=0
+        self.teleoppose.pose.orientation.y=0
+        self.teleoppose.pose.orientation.z=0
+        self.teleoppose.pose.orientation.w=0
 
         ## this is the frequency and amplitude for the "noise state" motion. Should be a small position that produces cyclical noise
         self.noisemotionfreq = 3 # rad/s, 
@@ -66,7 +82,7 @@ class FishBrain():
 
 
         #create a rate limit for moves to the resting position.
-        self.linrate = 0.005 #meters per second
+        self.linrate = 0.05 #meters per second
         self.yawratelimit = 0.5 #radians per second
 
         self.goalpose_pub = rospy.Publisher("/fishgantry/commandpose",PoseStamped,queue_size=1)
@@ -128,32 +144,34 @@ class FishBrain():
         
 
     def rateLimit(self,x,y,z,pitch,yaw,tail):
+
         #this function takes a goal pose and a current robot pose. If the request requires too fast of a move, 
         #this function returns the best the robot can do under the current rate limits.
         quat = [self.feedbackPose.pose.orientation.x,self.feedbackPose.pose.orientation.y,self.feedbackPose.pose.orientation.z,self.feedbackPose.pose.orientation.w]
 
         froll,fpitch,fyaw = tf.transformations.euler_from_quaternion(quat)
-        if((abs(x-self.feedbackPose.pose.position.x)/self.dt)>self.rateLimit):
-            newx+=sign(x-self.feedbackPose.pose.position.x)*self.rateLimit*self.dt
-            rospy.logwarn("RATE LIMIT X")
+        if((abs(x-self.pose.pose.position.x)/self.dt)>self.linrate):
+            newx=self.pose.pose.position.x+sign(x-self.pose.pose.position.x)*self.linrate*self.dt
+            # rospy.logwarn(self.pose.pose.position.x+ sign(x-self.pose.pose.position.x)*self.linrate*self.dt)
         else:
+            # rospy.logwarn((abs(x-self.pose.pose.position.x)/self.dt)>self.linrate)
             newx = x
-        if((abs(x-self.feedbackPose.pose.position.y)/self.dt)>self.rateLimit):
-            newy+=sign(y-self.feedbackPose.pose.position.y)*self.rateLimit*self.dt
-            rospy.logwarn("RATE LIMIT Y")
+        if((abs(x-self.pose.pose.position.y)/self.dt)>self.linrate):
+            newy=self.pose.pose.position.y +sign(y-self.pose.pose.position.y)*self.linrate*self.dt
+            # rospy.logwarn(newy)
         else:
             newy = y
-        if((abs(z-self.feedbackPose.pose.position.z)/self.dt)>self.rateLimit):
-            newz+=sign(z-self.feedbackPose.pose.position.z)*self.rateLimit*self.dt
-            rospy.logwarn("RATE LIMIT Z")
+        if((abs(z-self.pose.pose.position.z)/self.dt)>self.linrate):
+            newz= self.pose.pose.position.z +sign(z-self.pose.pose.position.z)*self.linrate*self.dt
+            # rospy.logwarn(newz)
         else:
             newz = z
-        if((abs(pitch-fpitch)/self.dt)>self.rateLimit):
-            newpitch+=sign(pitch-fpitch)*self.rateLimit*self.dt
+        if((abs(pitch-fpitch)/self.dt)>self.yawratelimit):
+            newpitch=pitch+sign(pitch-fpitch)*self.yawratelimit*self.dt
         else:
             newpitch = pitch
-        if((abs(yaw-fyaw)/self.dt)>self.rateLimit):
-            newyaw+=sign(yaw-fyaw)*self.rateLimit*self.dt
+        if((abs(yaw-fyaw)/self.dt)>self.yawratelimit):
+            newyaw=yaw+sign(yaw-fyaw)*self.yawratelimit*self.dt
         else:
             newyaw = yaw
 
@@ -213,14 +231,15 @@ class FishBrain():
                 #state 1 is the dummy state. use for teleop
                 if self.enabled:
                     x,y,z = self.teleoppose.pose.position.x,self.teleoppose.pose.position.y,self.teleoppose.pose.position.z
-                    quat = [self.restingpose.pose.orientation.x,self.restingpose.pose.orientation.y,self.restingpose.pose.orientation.z,self.restingpose.pose.orientation.w]
+                    quat = [self.teleoppose.pose.orientation.x,self.teleoppose.pose.orientation.y,self.teleoppose.pose.orientation.z,self.teleoppose.pose.orientation.w]
                     roll,pitch,yaw = tf.transformations.euler_from_quaternion(quat)
                     tail = 0
-                    x,y,z,pitch,yaw,tail = self.rateLimit(x,y,z,pitch,yaw,tail)
-                    self.pose.pose.position.x = x
-                    self.pose.pose.position.y = y
-                    self.pose.pose.position.z = z
-                    quat = tf.transformations.quaternion_from_euler(0,pitch,yaw)
+                    nx,ny,nz,npitch,nyaw,ntail = self.rateLimit(x,y,z,pitch,yaw,tail)
+                    #rospy.logwarn(self.feedbackPose.pose.position.x)
+                    self.pose.pose.position.x = nx
+                    self.pose.pose.position.y = ny
+                    self.pose.pose.position.z = nz
+                    quat = tf.transformations.quaternion_from_euler(0,npitch,nyaw)
                     self.pose.pose.orientation.x = quat[0]
                     self.pose.pose.orientation.y = quat[1]
                     self.pose.pose.orientation.z = quat[2]
@@ -231,7 +250,7 @@ class FishBrain():
             elif self.state==2:
                 #state 2 is the doing nothing state. This position gets set via the launch file.
                 if self.enabled:
-                    x,y,z = self.teleoppose.pose.position.x,self.teleoppose.pose.position.y,self.teleoppose.pose.position.z
+                    x,y,z = self.restingpose.pose.position.x,self.restingpose.pose.position.y,self.restingpose.pose.position.z
                     quat = [self.restingpose.pose.orientation.x,self.restingpose.pose.orientation.y,self.restingpose.pose.orientation.z,self.restingpose.pose.orientation.w]
                     roll,pitch,yaw = tf.transformations.euler_from_quaternion(quat)
                     tail = 0
@@ -251,7 +270,7 @@ class FishBrain():
                 #state 3 is the state where the robot moves cyclically in a tiny motion to just make noise
                 if self.enabled:
                     x = self.restingpose.pose.position.x + self.noisemotionamp*sin(self.noisemotionfreq*time.time())
-                    y = self.restingpose.pose.position.x + self.noisemotionamp*sin(self.noisemotionfreq*time.time())
+                    y = self.restingpose.pose.position.y + self.noisemotionamp*sin(self.noisemotionfreq*time.time())
                     z = self.restingpose.pose.position.z
                     quat = [self.restingpose.pose.orientation.x,self.restingpose.pose.orientation.y,self.restingpose.pose.orientation.z,self.restingpose.pose.orientation.w]
                     roll,pitch,yaw = tf.transformations.euler_from_quaternion(quat)
@@ -269,6 +288,9 @@ class FishBrain():
                     self.goalpose_pub.publish(self.pose)
             else:
                 rospy.logwarn("INVALID STATE REQUEST RECEIVED FOR ROBOT")
+                #rospy.logwarn(self.state)
+                #pass
+                #rospy.logwarn(self.state)
 
 
 
@@ -285,7 +307,9 @@ class FishBrain():
             self.manpath_social.updateCurrentState()
 
     def set_robot_state(self,data):
-        self.state=data.data
+        self.state=data.state
+        rospy.logwarn(self.state)
+        return setStateResponse(1)
     # def set_manual(self,data):
     #     self.state = 1
 

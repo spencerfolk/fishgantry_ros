@@ -15,7 +15,8 @@
 
 <node type="publish_camera_transforms.py" pkg="fishtracker" name="CameraPub"/>
 
-<node type="rviz" pkg="rviz" name="rviz" args="-d $(find fishgantry_ros)/rviz/gantryfish.rviz"/>
+<!-- <node type="rviz" pkg="rviz" name="rviz" args="-d $(find fishgantry_ros)/rviz/gantryfish.rviz"/> -->
+  <node name = "gantry_rqt_dashboard" pkg = "rqt_gui" type = "rqt_gui" respawn = "false" output = "screen" args = "--perspective-file $(find fishgantry_ros)/rqt_perspective/fa19_experiments.perspective"/>
 
 <node type="gantry_node.py" pkg="fishgantry_ros" name="gantry_control"/>
 
