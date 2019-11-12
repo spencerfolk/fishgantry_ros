@@ -283,7 +283,9 @@ class FishGantry():
 
     ############################## now publish markers and transforms ############################3
     #publish transform from world to static frame CS.
-    self.br.sendTransform((-24.0*.0254,-9*.0254,(-18-6)*.0254),tf.transformations.quaternion_from_euler(0,0,-pi/2),rospy.Time.now(),'/robot_static_cmd','/world')
+    # self.br.sendTransform((-24.0*.0254,-9*.0254,(-18-6)*.0254),tf.transformations.quaternion_from_euler(0,0,-pi/2),rospy.Time.now(),'/robot_static_cmd','/world')
+    self.br.sendTransform((-.34,-.36,-.8),tf.transformations.quaternion_from_euler(0,0,-pi/2),rospy.Time.now(),'/robot_static_cmd','/world')
+
     #publish transform from static to y motion
     self.br.sendTransform((0,self.command.pose.position.y,0),tf.transformations.quaternion_from_euler(0,0,0),rospy.Time.now(),'/robot_y_cmd','/robot_static_cmd')
     #publish transform from y motion to x motion

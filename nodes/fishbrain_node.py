@@ -51,7 +51,7 @@ class FishBrain():
 
         self.restingpose = PoseStamped();
         self.restingpose.pose.position.x=0.2
-        self.restingpose.pose.position.y=0
+        self.restingpose.pose.position.y=.07
         self.restingpose.pose.position.z=0
         self.restingpose.pose.orientation.x=0
         self.restingpose.pose.orientation.y=0
@@ -78,7 +78,10 @@ class FishBrain():
 
         ## this is the frequency and amplitude for the "noise state" motion. Should be a small position that produces cyclical noise
         self.noisemotionfreq = 3 # rad/s, 
-        self.noisemotionamp = 0.01#1cm command changes. Shouldn't result in ACTUAL perceptible motion
+        self.noisemotionamp = 0.0005#1cm command changes. Shouldn't result in ACTUAL perceptible motion
+
+        self.tailfreq = 6
+        self.tailamp = 20
 
 
         #create a rate limit for moves to the resting position.
@@ -274,6 +277,11 @@ class FishBrain():
                     x = self.restingpose.pose.position.x + self.noisemotionamp*sin(self.noisemotionfreq*time.time())
                     y = self.restingpose.pose.position.y + self.noisemotionamp*sin(self.noisemotionfreq*time.time())
                     z = self.restingpose.pose.position.z
+                    tailcommand = self.tailamp*sin(self.tailfreq*time.time())
+                    tailposemsg = PoseStamped()
+                    tailposemsg.header.stamp = rospy.Time.now()
+                    tailposemsg.pose.orientation.z = tailcommand
+
                     quat = [self.restingpose.pose.orientation.x,self.restingpose.pose.orientation.y,self.restingpose.pose.orientation.z,self.restingpose.pose.orientation.w]
                     roll,pitch,yaw = tf.transformations.euler_from_quaternion(quat)
                     tail = 0
@@ -288,6 +296,7 @@ class FishBrain():
                     self.pose.pose.orientation.w = quat[3]
                     self.pose.header.stamp = rospy.Time.now()
                     self.goalpose_pub.publish(self.pose)
+                    self.tailpose_pub.publish(tailposemsg)
             elif self.state==5:
                 #state 5 is the state where the robot moves in a path defined by a recording of fish position (in a file)
                 if self.enabled:
@@ -297,12 +306,17 @@ class FishBrain():
                     self.pose.pose.position.x = x
                     self.pose.pose.position.y = y
                     self.pose.pose.position.z = z
-                    quat = tf.transformations.quaternion_from_euler(0,pitch,yaw)
+                    quat = tf.transformations.quaternion_from_euler(0,pitch,yaw-3.1415/2+self.fileplayer.laps*2*pi)
                     self.pose.pose.orientation.x = quat[0]
                     self.pose.pose.orientation.y = quat[1]
                     self.pose.pose.orientation.z = quat[2]
                     self.pose.pose.orientation.w = quat[3]
                     self.pose.header.stamp = rospy.Time.now()
+                    # tailcommand = self.tailamp*sin(self.tailfreq*time.time())
+                    tailposemsg = PoseStamped()
+                    tailposemsg.header.stamp = rospy.Time.now()
+                    tailposemsg.pose.orientation.z = tail
+                    self.tailpose_pub.publish(tailposemsg)
                     self.goalpose_pub.publish(self.pose)
             else:
                 rospy.logwarn("INVALID STATE REQUEST RECEIVED FOR ROBOT")
