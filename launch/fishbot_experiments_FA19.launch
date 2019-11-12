@@ -10,6 +10,7 @@
 <param name="/fishnum" value="$(arg fish)"/> -->
 
 <!-- <node type="triangulate_fish_node.py" pkg="fishtracker" name="measurefish"/> -->
+<node type="monocular_fish_node.py" pkg="fishtracker" name="measurefish"/>
 <!--  -->
 <!-- <node type="triangulation_kalman_node.py" pkg="fishtracker" name="fishkalman"/> -->
 

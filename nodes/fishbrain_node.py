@@ -131,6 +131,8 @@ class FishBrain():
         rospack = rospkg.RosPack()
         # get the file path for rospy_tutorials
         self.package_path=rospack.get_path('fishgantry_ros')
+        self.filepath = self.package_path+"/playback/robotmotion.txt"
+        self.fileplayer = RecordedPath(self.filepath,self.dt)
 
 
     def restingposecallback(self,data):
@@ -286,6 +288,22 @@ class FishBrain():
                     self.pose.pose.orientation.w = quat[3]
                     self.pose.header.stamp = rospy.Time.now()
                     self.goalpose_pub.publish(self.pose)
+            elif self.state==5:
+                #state 5 is the state where the robot moves in a path defined by a recording of fish position (in a file)
+                if self.enabled:
+                    x,y,z,pitch,yaw,tail = self.fileplayer.update(self.dt)
+                    
+                    x,y,z,pitch,yaw,tail = self.rateLimit(x,y,z,pitch,yaw,tail)
+                    self.pose.pose.position.x = x
+                    self.pose.pose.position.y = y
+                    self.pose.pose.position.z = z
+                    quat = tf.transformations.quaternion_from_euler(0,pitch,yaw)
+                    self.pose.pose.orientation.x = quat[0]
+                    self.pose.pose.orientation.y = quat[1]
+                    self.pose.pose.orientation.z = quat[2]
+                    self.pose.pose.orientation.w = quat[3]
+                    self.pose.header.stamp = rospy.Time.now()
+                    self.goalpose_pub.publish(self.pose)
             else:
                 rospy.logwarn("INVALID STATE REQUEST RECEIVED FOR ROBOT")
                 #rospy.logwarn(self.state)
@@ -308,8 +326,24 @@ class FishBrain():
 
     def set_robot_state(self,data):
         self.state=data.state
-        rospy.logwarn(self.state)
-        return setStateResponse(1)
+        if(self.state==1):
+            return setStateResponse("Teleop Mode")
+        elif(self.state==2):
+            return setStateResponse("Do nothing in tank center Mode")
+        elif(self.state==3):
+            return setStateResponse("Small motion for motor noise Mode")
+        elif(self.state==4):
+            return setStateResponse("NOT IMPLEMENTED YET: Motor noise and tail")
+        elif(self.state==5):
+            return setStateResponse("file playback mode: file in playback/robotmotion.txt")
+        elif(self.state==6):
+            return setStateResponse("Antisocial Persistent Turning Walker Mode")
+        elif(self.state==7):
+            return setStateResponse("Social Persistent Turning Walker Mode")
+        else:
+            return setStateResponse("INVALID: TRY A NUMBER 1-7")
+        # rospy.logwarn(self.state)
+        # return setStateResponse(1)
     # def set_manual(self,data):
     #     self.state = 1
 
@@ -321,6 +355,54 @@ class FishBrain():
 
 
     #main function
+
+class RecordedPath():
+    def __init__(self,fname,dt):
+
+        if fname is not None:
+            self.tailtheta = 0.
+            self.tailangle = 0.
+            
+
+            self.xnow = 0.
+            self.ynow = 0.
+            self.znow = 0.
+            self.pitchnow =0.
+            self.yawnow = 0.
+            #data should come in as t,x,y,z
+            self.data = loadtxt(fname)
+            self.tdata = self.data[:,0]
+            self.xdata = self.data[:,1]
+            self.ydata = self.data[:,2]
+            self.zdata = self.data[:,3]
+            self.pitchdata = self.data[:,4]
+            self.yawdata = self.data[:,5]
+            self.taildata = self.data[:,6]
+            self.lapsdata = fix(self.yawdata/(2*pi))
+            self.laps = 0
+            # self.yawdata = medfilt(self.yawdata,5)
+            #zero out the time just in case it does not start at zero
+            self.tdata = self.tdata-self.tdata[0]
+            self.tnow = 0.
+
+        else:
+            print "No valid file!"
+
+    def update(self,dt):
+        self.tnow +=dt
+        if(self.tnow<=self.tdata[-1]):
+            self.xnow = interp(self.tnow,self.tdata,self.xdata)
+            self.ynow = interp(self.tnow,self.tdata,self.ydata)
+            self.znow = interp(self.tnow,self.tdata,self.zdata)
+            # self.pitchnow = interp(self.tnow,self.tdata,self.pitchdata)
+            self.yawnow = interp(self.tnow,self.tdata,self.yawdata)
+            self.pitchnow = interp(self.tnow,self.tdata,self.pitchdata)
+            self.tailangle = interp(self.tnow,self.tdata,self.taildata)
+            self.laps = fix(interp(self.tnow,self.tdata,self.lapsdata))
+            print self.laps
+        
+        return self.xnow,self.ynow,self.znow,self.pitchnow,self.yawnow,self.tailangle
+
 def main(args):
   rospy.init_node('fishbrain_node', anonymous=True)
   fishbrain = FishBrain()
