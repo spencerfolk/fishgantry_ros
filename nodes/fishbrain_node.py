@@ -13,6 +13,7 @@ from geometry_msgs.msg import PoseStamped,Pose
 from visualization_msgs.msg import Marker
 import std_srvs.srv
 from fishgantry_ros.srv import setState,setStateResponse
+from std_msgs.msg import *
 from numpy import *
 import time
 
@@ -90,6 +91,8 @@ class FishBrain():
 
         self.goalpose_pub = rospy.Publisher("/fishgantry/commandpose",PoseStamped,queue_size=1)
         self.tailpose_pub = rospy.Publisher("/fishgantry/tailpose",PoseStamped,queue_size=1)
+        self.laps_pub = rospy.Publisher("/fishgantry/laps",Int32,queue_size=1)
+        self.rawyaw_pub = rospy.Publisher("/fishgantry/rawyaw",Float32,queue_size=1)
         #initialize a command position
         self.command = PoseStamped()
         self.command.header.stamp = rospy.Time.now()
@@ -297,6 +300,7 @@ class FishBrain():
                     self.pose.header.stamp = rospy.Time.now()
                     self.goalpose_pub.publish(self.pose)
                     self.tailpose_pub.publish(tailposemsg)
+
             elif self.state==5:
                 #state 5 is the state where the robot moves in a path defined by a recording of fish position (in a file)
                 if self.enabled:
@@ -306,7 +310,7 @@ class FishBrain():
                     self.pose.pose.position.x = x
                     self.pose.pose.position.y = y
                     self.pose.pose.position.z = z
-                    quat = tf.transformations.quaternion_from_euler(0,pitch,yaw-3.1415/2+self.fileplayer.laps*2*pi)
+                    quat = tf.transformations.quaternion_from_euler(0,pitch,yaw)
                     self.pose.pose.orientation.x = quat[0]
                     self.pose.pose.orientation.y = quat[1]
                     self.pose.pose.orientation.z = quat[2]
@@ -316,6 +320,9 @@ class FishBrain():
                     tailposemsg = PoseStamped()
                     tailposemsg.header.stamp = rospy.Time.now()
                     tailposemsg.pose.orientation.z = tail
+                    lapsmsg = Int32()
+                    lapsmsg.data = self.fileplayer.laps
+                    self.laps_pub.publish(lapsmsg)
                     self.tailpose_pub.publish(tailposemsg)
                     self.goalpose_pub.publish(self.pose)
             else:
