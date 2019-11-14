@@ -9,7 +9,7 @@ import rospy
 
 class PersistentFishSocial():
     """
-    Class defining a fish following persistent random turning behavior as 
+    Class defining a fish following persistent random turning behavior as
     detailed in Zienkiewicz 2015 paper.
     sigma_u = 0.059;                        % (m/s)
     theta_u = 4.21;                         % (s^-1)
@@ -21,7 +21,7 @@ class PersistentFishSocial():
     dw = 0.0;                               % Magnitude of distance to boundary
     sigma_o = 12;                           % saturation variance (rad/s)
     fc = 0.0;                               % coupling function, forcing term
-    
+
     U = zeros(size(time));                  % swimming speed array (m/s)
     dU = zeros(size(time));                 % change in swimming speed (m/s^2)
     Omega = zeros(size(time));              % yaw rate, changes w random input (rad/s)
@@ -46,16 +46,16 @@ class PersistentFishSocial():
         self.dfish = dfish
         self.dist_K = dist_K
         self.yaw_K = yaw_K
-        
+
         # Save these values for Markov switching
         self.sigma_u_save,self.theta_u_save,self.mu_u_save,self.sigma_w_save=sigma_u,theta_u,mu_u,sigma_w
         self.theta_w_save,self.mu_w_save,self.sigma_o_save,self.fc_save = theta_w,mu_w,sigma_o,fc
         self.sigma_zdot_save,self.mu_zdot_save,self.theta_zdot_save = sigma_zdot,mu_zdot,theta_zdot
-        
-        self.U = 0. 
+
+        self.U = 0.
         self.Omega = 0.
         self.yawrate = 0.
-        self.x = 0. 
+        self.x = 0.
         self.y = 0.
         self.z = 0.
         self.zdot = 0.   # vertical speed (Vz)
@@ -92,7 +92,7 @@ class PersistentFishSocial():
         self.bound_X = xmax
         self.bound_Y = ymax
         self.bound_Z = zmax
-    
+
         self.bounds = array([[        0,                        0                 ],
                                 [     0,                        self.bound_Y      ],
                                 [     self.bound_X    ,         self.bound_Y      ],
@@ -104,32 +104,32 @@ class PersistentFishSocial():
 
 
     def findDistance(self,bounds,x,y,psi):
-        
+
         if(psi >= (2*math.pi)):
             # findDistance commands only likes psi within 0-2pi so only for this instance use relative psi
             psi = psi - math.trunc(psi/(2*math.pi))*2*math.pi
-            
+
         # Generate bound segments
         m = zeros((bounds.shape[0],1))
         for index in range(0,bounds.shape[0]):
             m[index] = (bounds[index][1]-bounds[index-1][1])/(bounds[index][0]-bounds[index-1][0])
-        
+
         bound_segments = append(bounds,m,axis=1)
-        # Uses point-slope form to find intersection of ray (fish heading) and the 
+        # Uses point-slope form to find intersection of ray (fish heading) and the
         # bounds of the tank. Assumes psi is between 0 and 2pi
-        
+
         # Create ray describing current heading
         if psi<0:
             psi += 2*math.pi
         m_ray = math.tan(psi)
-        
+
         x_intersect_arr = array([])
         y_intersect_arr = array([])
-        
+
         for index in range(0,bound_segments.shape[0]):
             # Loop through each boundary segment and find intersection point
-            # Shortcut because we know the tank boundaries will always be either 
-            # vertical or horizontal. 
+            # Shortcut because we know the tank boundaries will always be either
+            # vertical or horizontal.
             if abs(bound_segments[index][2]) == 0:
                 # Horizontal line described by y = num
                 y_intersect = bound_segments[index][1] # will intersect at this y value
@@ -138,33 +138,33 @@ class PersistentFishSocial():
                 # Vertical line described by x = num
                 x_intersect = bound_segments[index][0] # will intersect this x value
                 y_intersect = m_ray*(x_intersect - x) + y # point-slope solved for y
-            
+
             # Save values in array
             x_intersect_arr = append(x_intersect_arr,x_intersect)
             y_intersect_arr = append(y_intersect_arr,y_intersect)
-        
+
         # Use intersection points to find distance
         distances = sqrt(square(x_intersect_arr-x)+square(y_intersect_arr-y))
-        
+
         # Now we need to find the right quadrant of intersection point.
         quad_ray = math.floor(psi/(math.pi/2))+1
         if (psi == math.pi/2 and x > 0) or (psi == math.pi and y > 0) or (psi == 3*math.pi/2 and x < 0):
             # correct for weird instances where quadrant is iffy. Shouldn't ever occur
             # because it's very very unlikely yaw will be exactly pi, pi/2, etc.
             quad_ray -= 1
-        
+
         if (psi == 0 and y < 0):
             # see above, yes these are one-off solutions but again this shouldn't really occur
             # in practice.
             quad_ray = 4
-            
+
         intersect_angles = arctan2(y_intersect_arr-y,x_intersect_arr-x)
         for i in range(len(intersect_angles)):
             if intersect_angles[i] < 0:
                 intersect_angles[i] += 2*math.pi
-                
+
         quad_intersections = floor(intersect_angles/(math.pi/2))+1
-        
+
         flag = 0
         for i in range(len(quad_intersections)):                        # not out of the fish bounds
             x_pt = x_intersect_arr[i]
@@ -181,56 +181,56 @@ class PersistentFishSocial():
         #     print(str(x)+"\t"+str(y)+"\t"+str(psi))
 
         return dw
-        
+
     def calcDerivatives(self,Omega,U,x,y,zdot,psi,friendpos):
         """
         Calculates derivatives based on previous values of yaw rate (Omega) and
         forward speed (U). These stochastic differential equations also incorporate
         coupling function (fc) and wall function (fw).
         """
-        
 
-        
+
+
         sigma_o = self.sigma_o
         dt = self.dt
 
         theta_w,mu_w,sigma_w = self.theta_w,self.mu_w,self.sigma_w
         theta_u,mu_u,sigma_u = self.theta_u,self.mu_u,self.sigma_u*.033/dt
         theta_zdot,mu_zdot,sigma_zdot = self.theta_zdot,self.mu_zdot,self.sigma_zdot*.033/dt
-        
+
         # Compute coupling force fc
 #         if(U<mu_u):
 #             fc=sigma_w
 #         else:
 #             fc=sigma_w
         fc = 0#sigma_o*(2*sigma_o/(sigma_zdot+.00001))**(-U/mu_u)
-    
-    
+
+
         # Compute wall force
         dw = PersistentFishSocial.findDistance(self,self.bounds,x,y,psi);
         fw = 1.09*math.exp(-2.05*dw)
-        
+
         if Omega >= 0:
-            # Repulsive behavior, depending on sign of previous turning speed 
+            # Repulsive behavior, depending on sign of previous turning speed
             # it'll push in either direction
             fw = -fw
-        
+
         # Obtain random values that act as forcing terms.
         # randn() should work just like randn in matlab. Normally distributed about 0 mean
         dZ = random.randn()
         dW = random.randn()
         dB = random.randn()
-        
+
         # Derivatives
         # Omegadot = theta_w*(mu_w+fw-Omega)*dt + sigma_w*dZ
         Omegadot = theta_w*(mu_w-Omega)*dt + sigma_w*dZ
         # Omegadot = sigma_w*dZ
-        Udot = theta_u*(mu_u-U)*dt + fc*dW 
+        Udot = theta_u*(mu_u-U)*dt + fc*dW
         self.Udot = Udot
         zdoubledot = theta_zdot*(mu_zdot-zdot)+sigma_zdot*dB
-        
+
         return Omegadot, Udot, zdoubledot, dw # return dw for detecting collision
-    
+
     def updateStates(self,dt,Omega,U,x,y,zdot,psi,S,state=1,friendpos=None):
         if friendpos is not None:
             goal_angle = arctan2(friendpos[1]-self.y,friendpos[0]-self.x)-math.pi/2
@@ -264,15 +264,15 @@ class PersistentFishSocial():
         else:
             self.U += Udot*dt + self.dist_K*dist_error*dt
         self.zdot += zdoubledot*dt
-        
+
         if(self.U<0):
             ## print "U can't do that!"
             #self.U=0
             pass
-        
+
         # if dw <= 0.005:
         #     self.U = 0
-            
+
         ##### Bound z by setting zdot = 0 when approaching boundaries
         ##### TOP - z = 0, anything less than 0 will stop it
         ##### BOTTOM - z = maxz anything more will stop it.
@@ -283,17 +283,17 @@ class PersistentFishSocial():
 #        elif((self.z>=(app.zmax-0.001)) and (self.zdot>0)):  # in case bound_Z isn't updated for some reason.. pull zmax from Window class.
         elif((self.z>=(self.bound_Z-0.001)) and (self.zdot>0)):
             self.zdot = 0
-        
+
         # Determine relative positions S, psi
 #        self.S += self.U*dt  ######## NOTE THIS IS JUST IN-PLANE PATH
         #                   in-plane path     depth path
         self.S += math.sqrt((self.U*dt)**2 + (self.zdot*dt)**2)
         self.psi = psi + self.Omega*dt
-        
+
         # laps can be found by dividing current psi by 2pi to find number of laps
         psi_sign = self.psi/abs(self.psi)  # if negative this will return negative, positive positive.
         self.laps = psi_sign*math.trunc(abs(self.psi)/(2*math.pi))
-        
+
 #        if abs(self.psi)>=2*math.pi:
 #            # Keep yaw within 0 to 2pi
 #            if self.psi < 0:
@@ -309,23 +309,23 @@ class PersistentFishSocial():
                 self.x = self.x
             elif((self.x<=0.01) and (self.U*math.cos(self.psi)> 0)):
                 self.x = self.x + self.U*math.cos(self.psi)*dt
-                
+
             if((self.x>=(self.bound_X - 0.01)) and (self.U*math.cos(self.psi) >= 0)):
                 # If it's on the right wall and moving right
                 self.x = self.x
             elif((self.x>=(self.bound_X - 0.01)) and (self.U*math.cos(self.psi) < 0)):
                 self.x = self.x + self.U*math.cos(self.psi)*dt
-        else: 
+        else:
             self.x = self.x + self.U*math.cos(self.psi)*dt
-            
-        if ((self.y <= 0.01) or (self.y >= self.bound_Y - 0.01)):   
+
+        if ((self.y <= 0.01) or (self.y >= self.bound_Y - 0.01)):
             # If it's outside top/bottom bounds
             if((self.y<=0.01) and (self.U*math.sin(self.psi) <= 0)):
                 # If it's at bottom wall and moving down
                 self.y = self.y
             elif((self.y<=0.01) and (self.U*math.sin(self.psi) > 0)):
                 self.y = self.y + self.U*math.sin(self.psi)*dt
-            
+
             if((self.y>=(self.bound_Y - 0.01)) and (self.U*math.sin(self.psi) >= 0)):
                 # If it's at top wall and moving up
                 self.y = self.y
@@ -369,7 +369,7 @@ class PersistentFishSocial():
 #         else:
 #             self.y = self.y + self.U*math.sin(psi)*dt
 ############################################################################
-        
+
         # # Use these to transform to local coordinates
         # if ((self.x<.01) or (self.x>(self.bound_X-.01))):
         #     if(self.U*)
@@ -380,7 +380,7 @@ class PersistentFishSocial():
         #     self.y = self.y
         # else:
         #     self.y = self.y + self.U*math.sin(psi)*dt
-            
+
         self.z = self.z + self.zdot*dt
 
         # self.y = y + self.U*math.sin(self.psi)*dt
@@ -409,10 +409,10 @@ class PersistentFishSocial():
 
         # print self.pitchnow
         #print self.psi
-        return self.x, self.y, self.psi, self.z, self.pitchnow, self.tailangle 
+        return self.x, self.y, self.psi, self.z, self.pitchnow, self.tailangle
         #return Omega, U, S, psi, x, y
 
-    
+
     def drivePersistentFish(self,dt,state=1,friendpos=None):
         self.dt = dt
         # Update states given current position and speed
@@ -473,16 +473,16 @@ class MarkovChainSocial(PersistentFishSocial):
                 print "State changed from Inactive to Active"
 #               print self.elapsed
 #               self.elapsed = 0  # reset elapsed
-                
+
     def setActive(self):
         # Use temp values
         self.sigma_u, self.theta_u, self.mu_u, self.sigma_w = self.sigma_u_save, self.theta_u_save, self.mu_u_save, self.sigma_w_save
         self.theta_w, self.mu_w, self.sigma_o, self.fc =  self.theta_w_save, self.mu_w_save, self.sigma_o_save, self.fc_save
         self.sigma_zdot, self.mu_zdot, self.theta_zdot =  self.sigma_zdot_save, self.mu_zdot_save, self.theta_zdot_save
-        
+
     def setInactive(self):
         # Set inactive behavior
-        
+
         # 0 for now so that it doesn't do anything
         self.sigma_u, self.theta_u, self.mu_u, self.sigma_w= 0.00001, self.sigma_u_save, 0.00001 , 0.00001
         self.theta_w, self.mu_w, self.sigma_o, self.fc = 10*self.theta_w_save, 0.00001, 0.0001, 0.00001
