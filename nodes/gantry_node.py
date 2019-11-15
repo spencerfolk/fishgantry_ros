@@ -11,11 +11,13 @@ import rospkg
 import nav_msgs
 from geometry_msgs.msg import PoseStamped
 from visualization_msgs.msg import Marker
+from std_msgs.msg import Int32
 import std_srvs.srv
 from numpy import *
 
 class FishGantry():
   def __init__(self):
+    self.laps = 0
     self.timenow = rospy.Time.now()
     self.port = rospy.get_param('~port','/dev/ttyACM0')
     self.baud = rospy.get_param('~baud',115200)
@@ -29,6 +31,7 @@ class FishGantry():
     self.pitchpubcmd = rospy.Publisher("/fishgantry/robotcmd_pitch",Marker,queue_size=1)
     self.goalpose_sub = rospy.Subscriber("/fishgantry/commandpose",PoseStamped,self.commandCallback)
     self.tailpose_sub = rospy.Subscriber("/fishgantry/tailpose",PoseStamped,self.tailCallback)
+    self.laps_sub = rospy.Subscriber("/fishgantry/laps",Int32,self.lapscallback)
     #initialize a command position
     self.command = PoseStamped()
     self.command.header.stamp = rospy.Time.now()
@@ -56,6 +59,9 @@ class FishGantry():
     # get the file path for rospy_tutorials
     self.package_path=rospack.get_path('fishgantry_ros')
 
+  def lapscallback(self,data):
+    # self.laps = float(data.data)
+    rospy.logwarn(self.laps)
   def tailCallback(self,data):
     self.tailcommand = data.pose.orientation.z
   def commandCallback(self,data):
@@ -68,7 +74,13 @@ class FishGantry():
     self.command.pose.orientation.y = data.pose.orientation.y
     self.command.pose.orientation.w = data.pose.orientation.w
 
-    self.rollcommand,self.pitchcommand,self.yawcommand = tf.transformations.euler_from_quaternion([self.command.pose.orientation.x,self.command.pose.orientation.y,self.command.pose.orientation.z,self.command.pose.orientation.w])
+    self.rollcommand,pitchcommand,yawcommand = tf.transformations.euler_from_quaternion([self.command.pose.orientation.x,self.command.pose.orientation.y,self.command.pose.orientation.z,self.command.pose.orientation.w])
+    self.pitchcommand = -pitchcommand
+    if (yawcommand-self.yawcommand)>pi:
+        self.laps-=1
+    if (yawcommand-self.yawcommand)<-pi:
+        self.laps+=1
+    self.yawcommand = yawcommand
     # rospy.logwarn(str(self.yawcommand))
     #self.command.pose.orientation.roll,self.command.pose.orientation.pitch,self.command.pose.orientation.yaw#
     #print "received: "+str(self.command.pose.position.x)
@@ -97,7 +109,7 @@ class FishGantry():
     print line
 
   def loop(self,event):
-    serstring = '!'+"{0:.3f}".format(self.command.pose.position.x)+','+"{0:.3f}".format(-self.command.pose.position.y)+','+"{0:.3f}".format(self.command.pose.position.z)+','+"{0:.3f}".format(self.pitchcommand)+','+"{0:.3f}".format(self.yawcommand)+','+"{0:.3f}".format(self.tailcommand)+'\r\n'
+    serstring = '!'+"{0:.3f}".format(self.command.pose.position.x)+','+"{0:.3f}".format(self.command.pose.position.y)+','+"{0:.3f}".format(self.command.pose.position.z)+','+"{0:.3f}".format(self.pitchcommand)+','+"{0:.3f}".format(self.yawcommand+self.laps*2*pi)+','+"{0:.3f}".format(self.tailcommand)+'\r\n'
     # print "sending: "+serstring
     self.ser.write(serstring)
     line = self.ser.readline()
@@ -283,7 +295,9 @@ class FishGantry():
 
     ############################## now publish markers and transforms ############################3
     #publish transform from world to static frame CS.
-    self.br.sendTransform((-24.0*.0254,-9*.0254,(-18-6)*.0254),tf.transformations.quaternion_from_euler(0,0,-pi/2),rospy.Time.now(),'/robot_static_cmd','/world')
+    # self.br.sendTransform((-24.0*.0254,-9*.0254,(-18-6)*.0254),tf.transformations.quaternion_from_euler(0,0,-pi/2),rospy.Time.now(),'/robot_static_cmd','/world')
+    self.br.sendTransform((-.34,-.36,-.8),tf.transformations.quaternion_from_euler(0,0,-pi/2),rospy.Time.now(),'/robot_static_cmd','/world')
+
     #publish transform from static to y motion
     self.br.sendTransform((0,self.command.pose.position.y,0),tf.transformations.quaternion_from_euler(0,0,0),rospy.Time.now(),'/robot_y_cmd','/robot_static_cmd')
     #publish transform from y motion to x motion
@@ -293,7 +307,7 @@ class FishGantry():
     #publish transform from yaw motion to z motion
     self.br.sendTransform((0,0,self.command.pose.position.z-.929*.0254),tf.transformations.quaternion_from_euler(0,0,0),rospy.Time.now(),'/robot_z_cmd','/robot_yaw_cmd')
     #publish transform from z motion to tilt motion
-    self.br.sendTransform((0,0,0),tf.transformations.quaternion_from_euler(0,self.pitchcommand,0),rospy.Time.now(),'/robot_pitch_cmd','/robot_z_cmd')
+    self.br.sendTransform((0,0,0),tf.transformations.quaternion_from_euler(0,-self.pitchcommand,0),rospy.Time.now(),'/robot_pitch_cmd','/robot_z_cmd')
 
 #self.command.pose.position.z-.929*.0254
 
