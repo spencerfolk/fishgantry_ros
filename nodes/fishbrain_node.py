@@ -206,6 +206,21 @@ class FishBrain():
         # 6: Robot uses PTW antisocial
         # 7: Robot uses PTW social
         if self.initialized:
+            if self.state == 8:
+                if self.enabled:
+                    #this is the binary choice experiment state. We need to flip flop between a PTW and a guided PTW.
+                    #The guided PTW must end up at the center of the tank facing EITHER left or right, and then
+                    #The robot will execute a tilt.
+
+                    #self.pose.pose.position.x,self.pose.pose.position.y,self.pose.pose.position.z,pitch,yaw,tail = self.manpath.drivePersistentFish(self.dt)
+                    x,y,z,pitch,yaw,tail = self.manpath.drivePersistentFish(self.dt)
+                    self.pose.pose.position.x,self.pose.pose.position.y,self.pose.pose.position.z,pitch,yaw,tail = self.rateLimit(x,y,z,pitch,yaw,tail)
+
+                    quat = tf.transformations.quaternion_from_euler(0,pitch,yaw)
+                    self.pose.pose.orientation.x,self.pose.pose.orientation.y,self.pose.pose.orientation.z,self.pose.pose.orientation.w = quat
+                    self.pose.header.stamp = rospy.Time.now()
+                    self.goalpose_pub.publish(self.pose)
+                    #rospy.logwarn("trying to publish pose from antisocial")
             if self.state == 6:
                 if self.enabled:
                     #self.pose.pose.position.x,self.pose.pose.position.y,self.pose.pose.position.z,pitch,yaw,tail = self.manpath.drivePersistentFish(self.dt)
@@ -361,8 +376,11 @@ class FishBrain():
             return setStateResponse("Antisocial Persistent Turning Walker Mode")
         elif(self.state==7):
             return setStateResponse("Social Persistent Turning Walker Mode")
+        elif(self.state==8):
+            return setStateResponse("Binary Shooting Direction Mode")
         else:
-            return setStateResponse("INVALID: TRY A NUMBER 1-7")
+            return setStateResponse("INVALID: TRY A NUMBER 1-8")
+        
         # rospy.logwarn(self.state)
         # return setStateResponse(1)
     # def set_manual(self,data):
