@@ -1,8 +1,11 @@
+#include <Servo.h>
 #include <WSWire.h>
 #include "i2cAnything.h"
 // Assign your channel in pins
 #define CHANNEL_A_PIN 0
 #define CHANNEL_B_PIN 1
+
+Servo squirtservo;
 
 float testpos = 1.2345678;
 //for sending data back through i2c
@@ -85,7 +88,7 @@ void setup() {
   //attach the interrupts
   attachInterrupt(2, channelA, CHANGE);
   attachInterrupt(3, channelB, CHANGE);
-
+  squirtservo.attach(11);
 }
 
 void homeit(){
@@ -263,7 +266,7 @@ else{
   else if(servocommand<0.0){
     servocommand = 0.0;
   }
-  tailservo.write(int(servocommand));
+  squirtservo.write(int(servocommand));
 
 
 //
