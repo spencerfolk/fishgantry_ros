@@ -27,6 +27,8 @@ float oldcommand = 0;
 float oldoldcommand = 0;
 float battery_voltage = 4.0;
 
+float commandvec[] = {command,servocommand};
+
 float sinfreq = 2;
 float sinamp = PI/2;
 float sinangle = 0;
@@ -252,6 +254,17 @@ if(menable){
 else{
   analogWrite(enpin,0);
 }
+
+
+  if(servocommand>180.0){
+    servocommand = 180.0;
+  }
+  else if(servocommand<0.0){
+    servocommand = 0.0;
+  }
+  tailservo.write(int(servocommand));
+
+
 //
 //  Serial.print(dt, 5);
 //  Serial.print("\t");
@@ -289,13 +302,17 @@ void requestEvent()
   //interrupts();
 }
 void receiveEvent(int howMany){
-  if (howMany >= (sizeof command))
+  if (howMany >= ((sizeof commandvec)))
    {
     //noInterrupts();
-   I2C_readAnything (command);    
+   I2C_readAnything (commandvec); 
+   command=commandvec[0];
+   servocommand=commandvec[1];
+      
     //interrupts();
    }  // end if have enough data
 }
+
 
 // simple interrupt service routine
 void channelA()

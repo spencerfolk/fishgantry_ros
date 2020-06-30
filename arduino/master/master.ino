@@ -11,7 +11,9 @@ float cmd3 = 0;
 float cmd4 = 0;
 float cmd5 = 0;
 float tailcommand = 0;
+float squirtcommand = 0;
 float command4vec[] = {0,0};
+float command3vec[] = {0,0};
 
 float command1_fdbk = 0;
 float command2_fdbk = 0;
@@ -49,11 +51,11 @@ int address5 = 6;
 int address6 = 8;//needed because we have two y axis motors
 
 bool spoof1 = false;
-bool spoof2 = true;
-bool spoof3 = true;
-bool spoof4 = true;
-bool spoof5 = true;
-bool spoof6 = true;
+bool spoof2 = false;
+bool spoof3 = false;
+bool spoof4 = false;
+bool spoof5 = false;
+bool spoof6 = false;
 
 
 void setup() {
@@ -83,6 +85,7 @@ void loop()
       cmd4 = Serial.parseFloat();
       cmd5 = Serial.parseFloat();
       tailcommand = Serial.parseFloat();
+      squirtcommand = Serial.parseFloat();
       tailcommand += 90;
       if (tailcommand > 180.0) {
         tailcommand = 90.0;
@@ -159,6 +162,7 @@ if(!spoof3){
   //Write Command to Axis 3
   Wire.beginTransmission (address3);
   I2C_writeAnything (cmd3);
+  I2C_writeAnything (squirtcommand);
   Wire.endTransmission ();
   //Receive Feedback from Axis 3
   Wire.beginTransmission(address3);
@@ -234,4 +238,3 @@ void procSpoofs(){
   if(spoof5){feedback2 = feedback2+dt/tau*(cmd5-feedback2);}
 //  delayMicroseconds(10);
 }
-

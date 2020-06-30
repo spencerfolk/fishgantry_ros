@@ -8,8 +8,10 @@ float cmd2 = 0;
 float cmd3 = 0;
 float cmd4 = 0;
 float cmd5 = 0;
+float squirtcommand = 0;
 float tailcommand = 0;
 float command4vec[] = {0,0};
+float command3vec[] = {0,0};
 
 float command1_fdbk = 0;
 float command2_fdbk = 0;
@@ -69,6 +71,7 @@ if (Serial.available())
    cmd4 = Serial.parseFloat();
    cmd5 = Serial.parseFloat();
    tailcommand = Serial.parseFloat();
+   squirtcommand = Serial.parseFloat();
    tailcommand+=90;
    if(tailcommand>180){
     tailcommand=180;
