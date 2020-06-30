@@ -163,6 +163,9 @@ class FishBrainManager():
         self.filepath = self.package_path+"/playback/robotmotion.txt"
         self.fileplayer = RecordedPath(self.filepath,self.dt)
 
+        self.huntbrainstate = "none"
+        self.oldhuntbrainstate = "none"
+
 
     def restingposecallback(self,data):
         self.restingpose = data
@@ -269,6 +272,18 @@ class FishBrainManager():
                     tailposemsg.header.stamp = rospy.Time.now()
                     tailposemsg.pose.orientation.z = tailcommand
                     self.tailpose_pub.publish(tailposemsg)
+
+
+                    self.huntbrainstate = self.huntbrain.state
+                    if((self.huntbrainstate=="huntcapture") and (self.oldhuntbrainstate == "hunttilt")):
+                        squirtcommand = 180
+                    else:
+                        squirtcommand = 0
+
+                    squirtposemsg = PoseStamped()
+                    squirtposemsg.header.stamp = rospy.Time.now()
+                    squirtposemsg.pose.orientation.z = squirtcommand
+                    self.squirtpose_pub.publish(squirtposemsg)
 
             elif self.state == 8:
                 if self.enabled:

@@ -31,6 +31,7 @@ class FishGantry():
     self.pitchpubcmd = rospy.Publisher("/fishgantry/robotcmd_pitch",Marker,queue_size=1)
     self.goalpose_sub = rospy.Subscriber("/fishgantry/commandpose",PoseStamped,self.commandCallback)
     self.tailpose_sub = rospy.Subscriber("/fishgantry/tailpose",PoseStamped,self.tailCallback)
+    self.squirtpose_sub = rospy.Subscriber("/fishgantry/squirtpose",PoseStamped,self.squirtCallback)
     self.laps_sub = rospy.Subscriber("/fishgantry/laps",Int32,self.lapscallback)
     #initialize a command position
     self.command = PoseStamped()
@@ -41,6 +42,7 @@ class FishGantry():
     self.command.pose.orientation.z = 0
     self.command.pose.orientation.x = 0
     self.tailcommand = 0;
+    self.squirtcommand = 0;
     self.rollcommand,self.pitchcommand,self.yawcommand=0,0,0
 
     self.br = tf.TransformBroadcaster()
@@ -64,6 +66,13 @@ class FishGantry():
     rospy.logwarn(self.laps)
   def tailCallback(self,data):
     self.tailcommand = data.pose.orientation.z
+
+  def squirtCallback(self,data):
+    self.squirtcommand = data.pose.orientation.z
+
+
+
+
   def commandCallback(self,data):
     self.command.header.stamp = data.header.stamp
     self.command.pose.position.x = data.pose.position.x
@@ -87,7 +96,7 @@ class FishGantry():
 
   def enable_motors(self,event):
     encommand = -333.30
-    serstring = '!'+"{0:.3f}".format(encommand)+','+"{0:.3f}".format(encommand)+','+"{0:.3f}".format(encommand)+','+"{0:.3f}".format(encommand)+','+"{0:.3f}".format(encommand)+','+"{0:.3f}".format(0)+'\r\n'
+    serstring = '!'+"{0:.3f}".format(encommand)+','+"{0:.3f}".format(encommand)+','+"{0:.3f}".format(encommand)+','+"{0:.3f}".format(encommand)+','+"{0:.3f}".format(encommand)+','+"{0:.3f}".format(0)+','+"{0:.3f}".format(0)+'\r\n'
     print "sending: "+serstring
     self.ser.write(serstring)
     line = self.ser.readline()
@@ -95,21 +104,21 @@ class FishGantry():
 
   def disable_motors(self,event):
     discommand = -333.30
-    serstring = '!'+"{0:.3f}".format(discommand)+','+"{0:.3f}".format(discommand)+','+"{0:.3f}".format(discommand)+','+"{0:.3f}".format(discommand)+','+"{0:.3f}".format(discommand)+','+"{0:.3f}".format(0)+'\r\n'
+    serstring = '!'+"{0:.3f}".format(discommand)+','+"{0:.3f}".format(discommand)+','+"{0:.3f}".format(discommand)+','+"{0:.3f}".format(discommand)+','+"{0:.3f}".format(discommand)+','+"{0:.3f}".format(0)+','+"{0:.3f}".format(0)+'\r\n'
     print "sending: "+serstring
     self.ser.write(serstring)
     line = self.ser.readline()
     print line
   def home(self,event):
     homecommand = -333.30
-    serstring = '!'+"{0:.3f}".format(homecommand)+','+"{0:.3f}".format(homecommand)+','+"{0:.3f}".format(homecommand)+','+"{0:.3f}".format(homecommand)+','+"{0:.3f}".format(homecommand)+','+"{0:.3f}".format(0)+'\r\n'
+    serstring = '!'+"{0:.3f}".format(homecommand)+','+"{0:.3f}".format(homecommand)+','+"{0:.3f}".format(homecommand)+','+"{0:.3f}".format(homecommand)+','+"{0:.3f}".format(homecommand)+','+"{0:.3f}".format(0)+','+"{0:.3f}".format(0)+'\r\n'
     print "sending: "+serstring
     self.ser.write(serstring)
     line = self.ser.readline()
     print line
 
   def loop(self,event):
-    serstring = '!'+"{0:.3f}".format(self.command.pose.position.x)+','+"{0:.3f}".format(self.command.pose.position.y)+','+"{0:.3f}".format(self.command.pose.position.z)+','+"{0:.3f}".format(self.pitchcommand)+','+"{0:.3f}".format(self.yawcommand+self.laps*2*pi)+','+"{0:.3f}".format(self.tailcommand)+'\r\n'
+    serstring = '!'+"{0:.3f}".format(self.command.pose.position.x)+','+"{0:.3f}".format(self.command.pose.position.y)+','+"{0:.3f}".format(self.command.pose.position.z)+','+"{0:.3f}".format(self.pitchcommand)+','+"{0:.3f}".format(self.yawcommand+self.laps*2*pi)+','+"{0:.3f}".format(self.tailcommand)+','+"{0:.3f}".format(self.squirtcommand)+'\r\n'
     # print "sending: "+serstring
     self.ser.write(serstring)
     line = self.ser.readline()
