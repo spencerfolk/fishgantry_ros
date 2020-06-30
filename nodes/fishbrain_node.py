@@ -19,16 +19,35 @@ import time
 
 from PTW import *
 from PTWSocial import *
+from hunting_fishbrain.hunting_fishbrain.HybridFishBrain import *
+import copy
 
-class FishBrain():
+class FishBrainManager():
     def __init__(self):
 
         # state 1: manual control
         # state 2: PTW antisocial
         # state 3: PTW social
+
+        ### set up hunter for summer 2020 experiments
+
+        tc = TargetingController()
+        sc = PTWSwimController(muu=0.02,muw=0.2,muz = 0.0, nu=.01,nw=.5, nz = 0.05,tauu=0.1,tauw = .1,tauz = .1)
+        cc = PTWSwimController(muu=0.0,muw=0.0,muz = 0.0, nu=0,nw=0, nz = 0,tauu=.1,tauw = .1,tauz = .1)
+
+        goalTarg = FishState(.85,.15,.15,0,0) #the target has no inherent pitch or yaw requirement
+
+        TankBounds =[0,.38,0,.14,-.1,0]
+
+        self.huntbrain = FishBrain(TranMat=[[.95,.05],[.1,.9]])
+        self.huntcont = FishControlManager(goalTarg,sc,cc,tc,TankBounds)
+        self.fbpose = FishState()
+        self.oldfbpose = FishState()
+
+        ### old stuff
         self.initialized = False
         self.manpath = MarkovChain()
-        self.manpath.updateGeometry(.40,.15,.10)
+        self.manpath.updateGeometry(.38,.14,.10)
 
         self.manpath_social = MarkovChainSocial(theta_w=27.4,sigma_u=0.0000001,sigma_zdot=0.0000001,sigma_w=0.000001,sigma_o=0.00000001,dfish=0.1,dist_K=.001,yaw_K = .3)
         self.manpath_social.updateGeometry(.40,.15,.10)
@@ -67,6 +86,10 @@ class FishBrain():
         self.feedbackPose.pose.orientation.y=0
         self.feedbackPose.pose.orientation.z=0
         self.feedbackPose.pose.orientation.w=0
+
+        self.dtfeedback = .1
+        self.feedbacktime = 0
+        self.oldfeedbacktime = -.1
 
         self.teleoppose = PoseStamped()
         self.teleoppose.pose.position.x=0
@@ -194,7 +217,25 @@ class FishBrain():
             # self.manpath.pitchnow = p
             # self.manpath.psi = a
             self.initialized = True;
+
+        self.feedbacktime = time.time()
+
+        self.dtfeedback = self.feedbacktime-self.oldfeedbacktime
+        self.oldfeedbacktime = self.feedbacktime
         self.feedbackPose = data
+
+        fbr,fbp,fby = tf.transformations.euler_from_quaternion([self.feedbackPose.pose.orientation.x,self.feedbackPose.pose.orientation.y,self.feedbackPose.pose.orientation.z,self.feedbackPose.pose.orientation.w])
+        self.fbpose.x,self.fbpose.y,self.fbpose.z,self.fbpose.tilt,self.fbpose.psi = self.feedbackPose.pose.position.x,self.feedbackPose.pose.position.y,self.feedbackPose.pose.position.z,fbp,fby
+        self.fbpose.xdot = (self.fbpose.x-self.oldfbpose.x)/self.dtfeedback
+        self.fbpose.ydot = (self.fbpose.y-self.oldfbpose.y)/self.dtfeedback
+        self.fbpose.U = (self.fbpose.xdot**2+self.fbpose.ydot**2)**.5
+        self.fbpose.zdot = (self.fbpose.z-self.oldfbpose.z)/self.dtfeedback
+        self.fbpose.Tiltdot = (self.fbpose.tilt-self.oldfbpose.tilt)/self.dtfeedback
+        self.fbpose.Psidot = (self.fbpose.psi-self.oldfbpose.psi)/self.dtfeedback
+        self.oldfbpose = copy.deepcopy(self.fbpose)
+        # rospy.logwarn([self.fbpose.xdot,self.fbpose.ydot,self.fbpose.zdot, self.fbpose.Psidot, self.fbpose.U])
+        # rospy.logwarn([data.pose.position.x,data.pose.position.y,data.pose.position.z])
+        # rospy.logwarn([fbr,fbp,fby])
 
     def loop(self,data):
         #conditions for robot experiments
@@ -205,8 +246,31 @@ class FishBrain():
         # 5: Robot follows pre-recorded path
         # 6: Robot uses PTW antisocial
         # 7: Robot uses PTW social
+        
         if self.initialized:
-            if self.state == 8:
+            if self.state == 9:
+                if self.enabled:
+                    command,u,e = self.huntcont.getGantryCommand(self.huntbrain.state,self.fbpose,time.time())
+
+                    self.huntbrain.update(False,e,time.time())
+                    #rospy.logwarn(self.huntbrain.state)
+                    x,y,z,pitch,yaw = command.x,command.y,command.z,command.tilt,command.psi #tail is not yet implemented
+
+                    rospy.logwarn([command.y])
+                    tail = 0
+                    self.pose.pose.position.x,self.pose.pose.position.y,self.pose.pose.position.z,pitch,yaw,tail = self.rateLimit(x,y,z,pitch,yaw,tail)
+                    quat = tf.transformations.quaternion_from_euler(0,pitch,yaw)
+                    self.pose.pose.orientation.x,self.pose.pose.orientation.y,self.pose.pose.orientation.z,self.pose.pose.orientation.w = quat
+                    self.pose.header.stamp = rospy.Time.now()
+                    self.goalpose_pub.publish(self.pose)
+
+                    tailcommand = tail
+                    tailposemsg = PoseStamped()
+                    tailposemsg.header.stamp = rospy.Time.now()
+                    tailposemsg.pose.orientation.z = tailcommand
+                    self.tailpose_pub.publish(tailposemsg)
+
+            elif self.state == 8:
                 if self.enabled:
                     #this is the binary choice experiment state. We need to flip flop between a PTW and a guided PTW.
                     #The guided PTW must end up at the center of the tank facing EITHER left or right, and then
@@ -221,7 +285,7 @@ class FishBrain():
                     self.pose.header.stamp = rospy.Time.now()
                     self.goalpose_pub.publish(self.pose)
                     #rospy.logwarn("trying to publish pose from antisocial")
-            if self.state == 6:
+            elif self.state == 6:
                 if self.enabled:
                     #self.pose.pose.position.x,self.pose.pose.position.y,self.pose.pose.position.z,pitch,yaw,tail = self.manpath.drivePersistentFish(self.dt)
                     x,y,z,pitch,yaw,tail = self.manpath.drivePersistentFish(self.dt)
@@ -378,8 +442,10 @@ class FishBrain():
             return setStateResponse("Social Persistent Turning Walker Mode")
         elif(self.state==8):
             return setStateResponse("Binary Shooting Direction Mode")
+        elif(self.state==9):
+            return setStateResponse("Hunting Experiment Mode")
         else:
-            return setStateResponse("INVALID: TRY A NUMBER 1-8")
+            return setStateResponse("INVALID: TRY A NUMBER 1-9")
         
         # rospy.logwarn(self.state)
         # return setStateResponse(1)
@@ -444,7 +510,7 @@ class RecordedPath():
 
 def main(args):
   rospy.init_node('fishbrain_node', anonymous=True)
-  fishbrain = FishBrain()
+  fishbrain = FishBrainManager()
   
   try:
     rospy.spin()
