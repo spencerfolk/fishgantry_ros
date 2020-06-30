@@ -27,6 +27,7 @@ float oldcommand = 0;
 float oldoldcommand = 0;
 float battery_voltage = 4.0;
 
+float servocommand = 0;
 float commandvec[] = {command,servocommand};
 
 float sinfreq = 2;
