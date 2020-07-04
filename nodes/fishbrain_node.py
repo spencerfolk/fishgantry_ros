@@ -255,7 +255,7 @@ class FishBrainManager():
                 if self.enabled:
                     command,u,e = self.huntcont.getGantryCommand(self.huntbrain.state,self.fbpose,time.time())
 
-                    self.huntbrain.update(False,e,time.time())
+                    fishstate,fishshot = self.huntbrain.update(False,e,time.time())
                     #rospy.logwarn(self.huntbrain.state)
                     x,y,z,pitch,yaw = command.x,command.y,command.z,command.tilt,command.psi #tail is not yet implemented
 
