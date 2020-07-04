@@ -69,6 +69,14 @@ class FishBrainManager():
         self.restingposesub = rospy.Subscriber("/fishgantry/restingpose",PoseStamped,self.restingposecallback,queue_size=1)
         self.teleopposesub = rospy.Subscriber("/fishgantry/teleoppose",PoseStamped,self.teleopposecallback,queue_size=1)
 
+        self.targetposepub = rospy.Subscriber("/fishtarget_ros/targetpose",PoseStamped,self.targetposecallback,queue_size = 1)
+        self.targetstatepub = rospy.Subscriber("/fishtarget_ros/target_is_out",String,self.targetstatecallback,queue_size=1)
+        self.experimentalconditionsub = rospy.Subscriber("/fishtarget_ros/experimental_condition",String,self.experimentalconditioncallback,queue_size=1)
+
+        self.expcond = "CL"
+        self.targetstate = "waiting"
+        self.targetpose = Pose()
+
         self.restingpose = PoseStamped();
         self.restingpose.pose.position.x=0.2
         self.restingpose.pose.position.y=.07
@@ -116,6 +124,10 @@ class FishBrainManager():
         self.tailpose_pub = rospy.Publisher("/fishgantry/tailpose",PoseStamped,queue_size=1)
         self.laps_pub = rospy.Publisher("/fishgantry/laps",Int32,queue_size=1)
         self.rawyaw_pub = rospy.Publisher("/fishgantry/rawyaw",Float32,queue_size=1)
+
+        self.robotshotpub = rospy.Publisher("/fishgantry/robotshot",Bool,queue_size = 1)
+        self.robotshot = False
+
         #initialize a command position
         self.command = PoseStamped()
         self.command.header.stamp = rospy.Time.now()
@@ -166,6 +178,14 @@ class FishBrainManager():
         self.huntbrainstate = "none"
         self.oldhuntbrainstate = "none"
 
+    def targetstatecallback(self,data):
+        self.targetstate = data.data
+
+    def targetposecallback(self,data):
+        self.targetpose = data.pose
+
+    def experimentalconditioncallback(self,data):
+        self.expcond = data.data
 
     def restingposecallback(self,data):
         self.restingpose = data
@@ -252,10 +272,22 @@ class FishBrainManager():
         
         if self.initialized:
             if self.state == 9:
+
+                #decide whether robot should be hunting
+                if((self.expcond[0]=="E") and (self.targetstate == "target")):
+                    hunt = True
+                else:
+                    hunt = False
+
+
+                # update fish controller manager to know where the target is 
+                self.huntcont.goal = FishState(self.targetpose.x,self.targetpose.y,self.targetpose.z,0,0)
+                
                 if self.enabled:
+
                     command,u,e = self.huntcont.getGantryCommand(self.huntbrain.state,self.fbpose,time.time())
 
-                    fishstate,fishshot = self.huntbrain.update(False,e,time.time())
+                    fishstate,fishshot = self.huntbrain.update(hunt,e,time.time())
                     #rospy.logwarn(self.huntbrain.state)
                     x,y,z,pitch,yaw = command.x,command.y,command.z,command.tilt,command.psi #tail is not yet implemented
 
