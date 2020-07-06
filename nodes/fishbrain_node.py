@@ -124,6 +124,7 @@ class FishBrainManager():
         self.tailpose_pub = rospy.Publisher("/fishgantry/tailpose",PoseStamped,queue_size=1)
         self.laps_pub = rospy.Publisher("/fishgantry/laps",Int32,queue_size=1)
         self.rawyaw_pub = rospy.Publisher("/fishgantry/rawyaw",Float32,queue_size=1)
+        self.squirtpose_pub = rospy.Publisher("fishgantry_ros/squirtpose",PoseStamped,queue_size=1)
 
         self.robotshotpub = rospy.Publisher("/fishgantry/robotshot",Bool,queue_size = 1)
         self.robotshot = False
@@ -281,7 +282,7 @@ class FishBrainManager():
 
 
                 # update fish controller manager to know where the target is 
-                self.huntcont.goal = FishState(self.targetpose.x,self.targetpose.y,self.targetpose.z,0,0)
+                self.huntcont.goal = FishState(self.targetpose.position.x,self.targetpose.position.y,self.targetpose.position.z,0,0)
                 
                 if self.enabled:
 
