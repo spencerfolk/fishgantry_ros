@@ -29,10 +29,8 @@ class FishBrainManager():
         # state 2: PTW antisocial
         # state 3: PTW social
 
-        ### set up hunter for summer 2020 experiments
-
         tc = TargetingController()
-        sc = PTWSwimController(muu=0.02,muw=0.2,muz = 0.0, nu=.01,nw=.5, nz = 0.05,tauu=0.1,tauw = .1,tauz = .1)
+        sc = PTWSwimController(muu=0.02,muw=0.2,muz = 0.0, nu=.01,nw=.5, nz = 0.0,tauu=0.1,tauw = .1,tauz = .1)
         cc = PTWSwimController(muu=0.0,muw=0.0,muz = 0.0, nu=0,nw=0, nz = 0,tauu=.1,tauw = .1,tauz = .1)
 
         goalTarg = FishState(.85,.15,.15,0,0) #the target has no inherent pitch or yaw requirement
@@ -72,6 +70,8 @@ class FishBrainManager():
         self.targetposepub = rospy.Subscriber("/fishtarget_ros/targetpose",PoseStamped,self.targetposecallback,queue_size = 1)
         self.targetstatepub = rospy.Subscriber("/fishtarget_ros/target_is_out",String,self.targetstatecallback,queue_size=1)
         self.experimentalconditionsub = rospy.Subscriber("/fishtarget_ros/experimental_condition",String,self.experimentalconditioncallback,queue_size=1)
+
+
 
         self.expcond = "CL"
         self.targetstate = "waiting"
@@ -127,6 +127,11 @@ class FishBrainManager():
         self.squirtpose_pub = rospy.Publisher("fishgantry_ros/squirtpose",PoseStamped,queue_size=1)
 
         self.robotshotpub = rospy.Publisher("/fishgantry/robotshot",Bool,queue_size = 1)
+        self.robotstatepub = rospy.Publisher("/fishgantry/brainstate",String,queue_size=1)
+
+        self.exprunningpub = rospy.Publisher("/fishgantry/exprunning",Bool,queue_size=1)
+
+
         self.robotshot = False
 
         #initialize a command position
@@ -164,7 +169,7 @@ class FishBrainManager():
 
         
 
-        self.dt = 0.01
+        self.dt = 0.015
         #main loop runs on a timer, which ensures that we get timely updates from the gantry arduino
         rospy.Timer(rospy.Duration(self.dt),self.loop,oneshot=False) #timer callback (math) allows filter to run at constant time
         rospy.Timer(rospy.Duration(.1),self.slowloop,oneshot=False)
@@ -181,12 +186,14 @@ class FishBrainManager():
 
     def targetstatecallback(self,data):
         self.targetstate = data.data
+        # rospy.logwarn(self.targetstate)
 
     def targetposecallback(self,data):
         self.targetpose = data.pose
 
     def experimentalconditioncallback(self,data):
         self.expcond = data.data
+        # rospy.logwarn(self.expcond)
 
     def restingposecallback(self,data):
         self.restingpose = data
@@ -257,7 +264,7 @@ class FishBrainManager():
         self.fbpose.Tiltdot = (self.fbpose.tilt-self.oldfbpose.tilt)/self.dtfeedback
         self.fbpose.Psidot = (self.fbpose.psi-self.oldfbpose.psi)/self.dtfeedback
         self.oldfbpose = copy.deepcopy(self.fbpose)
-        # rospy.logwarn([self.fbpose.xdot,self.fbpose.ydot,self.fbpose.zdot, self.fbpose.Psidot, self.fbpose.U])
+        #rospy.logwarn([self.fbpose.xdot,self.fbpose.ydot,self.fbpose.zdot, self.fbpose.Psidot, self.fbpose.U])
         # rospy.logwarn([data.pose.position.x,data.pose.position.y,data.pose.position.z])
         # rospy.logwarn([fbr,fbp,fby])
 
@@ -270,29 +277,39 @@ class FishBrainManager():
         # 5: Robot follows pre-recorded path
         # 6: Robot uses PTW antisocial
         # 7: Robot uses PTW social
+        expmsg = Bool()
+        exp = False
         
         if self.initialized:
             if self.state == 9:
+                exp = True
 
                 #decide whether robot should be hunting
                 if((self.expcond[0]=="E") and (self.targetstate == "target")):
                     hunt = True
+                    rospy.logwarn("hunting")
                 else:
                     hunt = False
+                    rospy.logwarn("not hunting because expcond = " +self.expcond[0]+" and targetstate is "+self.targetstate)
 
 
                 # update fish controller manager to know where the target is 
                 self.huntcont.goal = FishState(self.targetpose.position.x,self.targetpose.position.y,self.targetpose.position.z,0,0)
                 
                 if self.enabled:
-
-                    command,u,e = self.huntcont.getGantryCommand(self.huntbrain.state,self.fbpose,time.time())
+                    command,u,e = self.huntcont.getGantryCommand(self.huntbrain.state,self.huntcont.robotcommand,time.time())
+                    # command,u,e = self.huntcont.getGantryCommand(self.huntbrain.state,self.fbpose,time.time())
 
                     fishstate,fishshot = self.huntbrain.update(hunt,e,time.time())
+                    self.robotshot = bool(fishshot)
+                    shotmsg = Bool()
+                    shotmsg.data = self.robotshot
+                    self.robotshotpub.publish(shotmsg)
+
                     #rospy.logwarn(self.huntbrain.state)
                     x,y,z,pitch,yaw = command.x,command.y,command.z,command.tilt,command.psi #tail is not yet implemented
 
-                    rospy.logwarn([command.y])
+                    #rospy.logwarn([self.huntcont.control_inputs.u_U])
                     tail = 0
                     self.pose.pose.position.x,self.pose.pose.position.y,self.pose.pose.position.z,pitch,yaw,tail = self.rateLimit(x,y,z,pitch,yaw,tail)
                     quat = tf.transformations.quaternion_from_euler(0,pitch,yaw)
@@ -457,6 +474,8 @@ class FishBrainManager():
                 #rospy.logwarn(self.state)
                 #pass
                 #rospy.logwarn(self.state)
+            expmsg.data = exp
+            self.exprunningpub.publish(expmsg)
 
 
 
