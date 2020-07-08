@@ -42,7 +42,7 @@ class FishGantry():
     self.command.pose.orientation.z = 0
     self.command.pose.orientation.x = 0
     self.tailcommand = 0;
-    self.squirtcommand = 0;
+    self.squirtcommand =145;
     self.rollcommand,self.pitchcommand,self.yawcommand=0,0,0
 
     self.br = tf.TransformBroadcaster()
@@ -118,6 +118,7 @@ class FishGantry():
     print line
 
   def loop(self,event):
+    rospy.logwarn(self.squirtcommand)
     serstring = '!'+"{0:.3f}".format(self.command.pose.position.x)+','+"{0:.3f}".format(self.command.pose.position.y)+','+"{0:.3f}".format(self.command.pose.position.z)+','+"{0:.3f}".format(self.pitchcommand)+','+"{0:.3f}".format(self.yawcommand+self.laps*2*pi)+','+"{0:.3f}".format(self.tailcommand)+','+"{0:.3f}".format(self.squirtcommand)+'\r\n'
     # print "sending: "+serstring
     self.ser.write(serstring)
@@ -305,7 +306,8 @@ class FishGantry():
     ############################## now publish markers and transforms ############################3
     #publish transform from world to static frame CS.
     # self.br.sendTransform((-24.0*.0254,-9*.0254,(-18-6)*.0254),tf.transformations.quaternion_from_euler(0,0,-pi/2),rospy.Time.now(),'/robot_static_cmd','/world')
-    self.br.sendTransform((-.34,-.36,-.6),tf.transformations.quaternion_from_euler(0,0,-pi/2),rospy.Time.now(),'/robot_static_cmd','/world')
+    # self.br.sendTransform((-.34,-.36,-.6),tf.transformations.quaternion_from_euler(0,0,-pi/2),rospy.Time.now(),'/robot_static_cmd','/world')
+    self.br.sendTransform((-.44,-.36,-.6),tf.transformations.quaternion_from_euler(0,0,-pi/2),rospy.Time.now(),'/robot_static_cmd','/world')
 
     #publish transform from static to y motion
     self.br.sendTransform((0,self.command.pose.position.y,0),tf.transformations.quaternion_from_euler(0,0,0),rospy.Time.now(),'/robot_y_cmd','/robot_static_cmd')

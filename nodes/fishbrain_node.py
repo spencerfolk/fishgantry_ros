@@ -30,8 +30,8 @@ class FishBrainManager():
         # state 3: PTW social
 
         tc = TargetingController()
-        sc = PTWSwimController(muu=0.02,muw=0.2,muz = 0.0, nu=.01,nw=.5, nz = 0.0,tauu=0.1,tauw = .1,tauz = .1)
-        cc = PTWSwimController(muu=0.0,muw=0.0,muz = 0.0, nu=0,nw=0, nz = 0,tauu=.1,tauw = .1,tauz = .1)
+        sc = PTWSwimController(muu=0.02,muw=0.2,muz = 0.0, nu=.01,nw=.1, nz = 0.005,tauu=0.1,tauw = .3,tauz = .1)
+        cc = PTWSwimController(muu=0.0,muw=0.0,muz = 0.0, nu=0,nw=0, nz = 0,tauu=.25,tauw = .1,tauz = .1)
 
         goalTarg = FishState(.85,.15,.15,0,0) #the target has no inherent pitch or yaw requirement
 
@@ -124,7 +124,11 @@ class FishBrainManager():
         self.tailpose_pub = rospy.Publisher("/fishgantry/tailpose",PoseStamped,queue_size=1)
         self.laps_pub = rospy.Publisher("/fishgantry/laps",Int32,queue_size=1)
         self.rawyaw_pub = rospy.Publisher("/fishgantry/rawyaw",Float32,queue_size=1)
-        self.squirtpose_pub = rospy.Publisher("fishgantry_ros/squirtpose",PoseStamped,queue_size=1)
+        self.squirtpose_pub = rospy.Publisher("fishgantry/squirtpose",PoseStamped,queue_size=1)
+        self.squirtpose = PoseStamped()
+        #here we get the in and out parameters of the squirt servo. TODO make parameters?
+        self.squirtservo_outpos = 180
+        self.squirtservo_inpos = 145
 
         self.robotshotpub = rospy.Publisher("/fishgantry/robotshot",Bool,queue_size = 1)
         self.robotstatepub = rospy.Publisher("/fishgantry/brainstate",String,queue_size=1)
@@ -305,12 +309,25 @@ class FishBrainManager():
                     shotmsg = Bool()
                     shotmsg.data = self.robotshot
                     self.robotshotpub.publish(shotmsg)
+                    
+
+                    #update the timestamp on the squirt pose message
+                    self.squirtpose.header.stamp = rospy.Time.now()
+
+                    #TODO operate the syringe. if fishshot is true, squirt away. Don't retract until the fish is back in "huntswim"
+                    #this will ensure that the fish's mouth is fully submerged.
+                    if(fishstate == "huntcapture"): #(self.robotshot):
+                        self.squirtpose.pose.orientation.z = self.squirtservo_outpos
+                    if (fishstate =="huntswim"):
+                        self.squirtpose.pose.orientation.z = self.squirtservo_inpos
+                    self.squirtpose_pub.publish(self.squirtpose)
+
 
                     #rospy.logwarn(self.huntbrain.state)
                     x,y,z,pitch,yaw = command.x,command.y,command.z,command.tilt,command.psi #tail is not yet implemented
 
                     #rospy.logwarn([self.huntcont.control_inputs.u_U])
-                    tail = 0
+                    tail = self.huntcont.tailangle
                     self.pose.pose.position.x,self.pose.pose.position.y,self.pose.pose.position.z,pitch,yaw,tail = self.rateLimit(x,y,z,pitch,yaw,tail)
                     quat = tf.transformations.quaternion_from_euler(0,pitch,yaw)
                     self.pose.pose.orientation.x,self.pose.pose.orientation.y,self.pose.pose.orientation.z,self.pose.pose.orientation.w = quat
@@ -325,15 +342,15 @@ class FishBrainManager():
 
 
                     self.huntbrainstate = self.huntbrain.state
-                    if((self.huntbrainstate=="huntcapture") and (self.oldhuntbrainstate == "hunttilt")):
-                        squirtcommand = 180
-                    else:
-                        squirtcommand = 0
+                    # if((self.huntbrainstate=="huntcapture") and (self.oldhuntbrainstate == "hunttilt")):
+                    #     squirtcommand = 180
+                    # else:
+                    #     squirtcommand = 0
 
-                    squirtposemsg = PoseStamped()
-                    squirtposemsg.header.stamp = rospy.Time.now()
-                    squirtposemsg.pose.orientation.z = squirtcommand
-                    self.squirtpose_pub.publish(squirtposemsg)
+                    # squirtposemsg = PoseStamped()
+                    # squirtposemsg.header.stamp = rospy.Time.now()
+                    # squirtposemsg.pose.orientation.z = squirtcommand
+                    # self.squirtpose_pub.publish(squirtposemsg)
 
             elif self.state == 8:
                 if self.enabled:
