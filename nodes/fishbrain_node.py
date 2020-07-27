@@ -30,15 +30,21 @@ class FishBrainManager():
         # state 3: PTW social
 
         tc = TargetingController()
-        sc = PTWSwimController(muu=0.02,muw=0.2,muz = 0.0, nu=.01,nw=.1, nz = 0.005,tauu=0.1,tauw = .3,tauz = .1)
-        cc = PTWSwimController(muu=0.0,muw=0.0,muz = 0.0, nu=0,nw=0, nz = 0,tauu=.25,tauw = .1,tauz = .1)
+        #sc = PTWSwimController(muu=0.02,muw=0.2,muz = 0.0, nu=.01,nw=.1, nz = 0.005,tauu=0.1,tauw = .3,tauz = .1)
+        #cc = PTWSwimController(muu=0.0,muw=0.0,muz = 0.0, nu=0,nw=0, nz = 0,tauu=.25,tauw = .1,tauz = .1)
+
+        #ACTIVE
+        sc = PTWSwimController(muu=0.067,muw=0.0057,muz = 0.0, nu=(.0042),nw=(1.509), nz = (0.0025),tauu=3.67,tauw = .5916,tauz = .517)
+        #INACTIVE
+        cc = PTWSwimController(muu=0.0162,muw=0,muz = 0.0, nu=0.18,nw=0, nz = 0,tauu=1.0/20,tauw = 1.0/.18,tauz = 1.0/9.64)
 
         goalTarg = FishState(.85,.15,.15,0,0) #the target has no inherent pitch or yaw requirement
 
         TankBounds =[0,.38,0,.14,-.1,0]
 
-        self.huntbrain = FishBrain(TranMat=[[.95,.05],[.1,.9]])
-        self.huntcont = FishControlManager(goalTarg,sc,cc,tc,TankBounds)
+        self.huntbrain = FishBrain(TranMat=[[.9585,1-.9585],[1-.9884,.9884]],dT=0.033)#FishBrain(TranMat=[[.95,.05],[.1,.9]])
+        #self.huntbrain = FishBrain(TranMat=[[.9585,1-.9585],[1-.9884,.9884]],dT=0.033)#FishBrain(TranMat=[[.95,.05],[.1,.9]])
+        self.huntcont = FishControlManager(goalTarg,sc,cc,tc,TankBounds,tailamp = 10.0)
         self.fbpose = FishState()
         self.oldfbpose = FishState()
 
@@ -127,8 +133,8 @@ class FishBrainManager():
         self.squirtpose_pub = rospy.Publisher("fishgantry/squirtpose",PoseStamped,queue_size=1)
         self.squirtpose = PoseStamped()
         #here we get the in and out parameters of the squirt servo. TODO make parameters?
-        self.squirtservo_outpos = 180
-        self.squirtservo_inpos = 145
+        self.squirtservo_outpos = 35
+        self.squirtservo_inpos = 0
 
         self.robotshotpub = rospy.Publisher("/fishgantry/robotshot",Bool,queue_size = 1)
         self.robotstatepub = rospy.Publisher("/fishgantry/brainstate",String,queue_size=1)
@@ -325,7 +331,7 @@ class FishBrainManager():
 
                     #rospy.logwarn(self.huntbrain.state)
                     x,y,z,pitch,yaw = command.x,command.y,command.z,command.tilt,command.psi #tail is not yet implemented
-
+                    pitch = -pitch
                     #rospy.logwarn([self.huntcont.control_inputs.u_U])
                     tail = self.huntcont.tailangle
                     self.pose.pose.position.x,self.pose.pose.position.y,self.pose.pose.position.z,pitch,yaw,tail = self.rateLimit(x,y,z,pitch,yaw,tail)

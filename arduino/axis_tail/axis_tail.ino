@@ -5,6 +5,8 @@
 #define CHANNEL_A_PIN 0
 #define CHANNEL_B_PIN 1
 
+bool validzero = false;
+
 float testpos = 1.2345678;
 //for sending data back through i2c
 volatile byte* posFloatPtr;
@@ -82,6 +84,13 @@ delayMicroseconds(1000);
   attachInterrupt(2, channelA, CHANGE);
   attachInterrupt(3, channelB, CHANGE);
   tailservo.attach(11);
+  pinMode(lim1pin,INPUT);
+  pinMode(lim2pin,INPUT);
+  
+  if(digitalRead(lim1pin)){
+    validzero = true;
+    unCountShared = 0;
+  }
 
 }
 
@@ -236,7 +245,7 @@ void loop() {
 
 
 
-if(menable){
+if(menable && validzero){
   if (V < 0) {
     
     digitalWrite(in1pin, LOW);
@@ -311,6 +320,11 @@ void receiveEvent(int howMany){
    I2C_readAnything (commandvec); 
    command=commandvec[0];
    servocommand=commandvec[1];
+   if(!validzero){
+    //posrad = (unCount * 2.0 * PI) / (cpr * 1.0);
+    unCountShared = command*1.0*cpr/(2*PI);
+    validzero = true;
+   }
       
     //interrupts();
    }  // end if have enough data

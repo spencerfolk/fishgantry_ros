@@ -42,7 +42,7 @@ class FishGantry():
     self.command.pose.orientation.z = 0
     self.command.pose.orientation.x = 0
     self.tailcommand = 0;
-    self.squirtcommand =145;
+    self.squirtcommand =0;
     self.rollcommand,self.pitchcommand,self.yawcommand=0,0,0
 
     self.br = tf.TransformBroadcaster()
@@ -53,7 +53,7 @@ class FishGantry():
 
 
     #main loop runs on a timer, which ensures that we get timely updates from the gantry arduino
-    rospy.Timer(rospy.Duration(.01),self.loop,oneshot=False) #timer callback (math) allows filter to run at constant time
+    rospy.Timer(rospy.Duration(.02),self.loop,oneshot=False) #timer callback (math) allows filter to run at constant time
     rospy.Timer(rospy.Duration(.1),self.slowloop,oneshot=False)
     #subscribers (inputs)
     #construct the file name for our text output file
@@ -118,8 +118,9 @@ class FishGantry():
     print line
 
   def loop(self,event):
-    rospy.logwarn(self.squirtcommand)
-    serstring = '!'+"{0:.3f}".format(self.command.pose.position.x)+','+"{0:.3f}".format(self.command.pose.position.y)+','+"{0:.3f}".format(self.command.pose.position.z)+','+"{0:.3f}".format(self.pitchcommand)+','+"{0:.3f}".format(self.yawcommand+self.laps*2*pi)+','+"{0:.3f}".format(self.tailcommand)+','+"{0:.3f}".format(self.squirtcommand)+'\r\n'
+    rospy.logwarn("Squirt Command: "+"{0:.3f}".format(self.squirtcommand))
+    rospy.logwarn("Tilt Command: "+"{0:.3f}".format(-self.pitchcommand))
+    serstring = '!'+"{0:.3f}".format(self.command.pose.position.x)+','+"{0:.3f}".format(self.command.pose.position.y)+','+"{0:.3f}".format(self.command.pose.position.z)+','+"{0:.3f}".format(0.0-self.pitchcommand)+','+"{0:.3f}".format(self.yawcommand+self.laps*2*pi)+','+"{0:.3f}".format(self.tailcommand)+','+"{0:.3f}".format(self.squirtcommand)+'\r\n'
     # print "sending: "+serstring
     self.ser.write(serstring)
     line = self.ser.readline()
@@ -318,7 +319,7 @@ class FishGantry():
     #publish transform from yaw motion to z motion
     self.br.sendTransform((0,0,self.command.pose.position.z-.929*.0254),tf.transformations.quaternion_from_euler(0,0,0),rospy.Time.now(),'/robot_z_cmd','/robot_yaw_cmd')
     #publish transform from z motion to tilt motion
-    self.br.sendTransform((0,0,0),tf.transformations.quaternion_from_euler(0,-self.pitchcommand,0),rospy.Time.now(),'/robot_pitch_cmd','/robot_z_cmd')
+    self.br.sendTransform((0,0,0),tf.transformations.quaternion_from_euler(0,self.pitchcommand,0),rospy.Time.now(),'/robot_pitch_cmd','/robot_z_cmd')
 
 #self.command.pose.position.z-.929*.0254
 
