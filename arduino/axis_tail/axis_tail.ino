@@ -21,7 +21,7 @@ boolean menable = true;
 float TILTOFFSET = 70;
 float fixedcommand = 0;
 
-float kp = 50.0;
+float kp = 100.0;
 float ki = 0.0;
 float kd = 2.0;
 float command = 0;

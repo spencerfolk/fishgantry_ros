@@ -44,7 +44,7 @@ class FishBrainManager():
 
         self.huntbrain = FishBrain(TranMat=[[.9585,1-.9585],[1-.9884,.9884]],dT=0.033)#FishBrain(TranMat=[[.95,.05],[.1,.9]])
         #self.huntbrain = FishBrain(TranMat=[[.9585,1-.9585],[1-.9884,.9884]],dT=0.033)#FishBrain(TranMat=[[.95,.05],[.1,.9]])
-        self.huntcont = FishControlManager(goalTarg,sc,cc,tc,TankBounds,tailamp = 10.0)
+        self.huntcont = FishControlManager(goalTarg,sc,cc,tc,TankBounds,tailamp = 25.0)
         self.fbpose = FishState()
         self.oldfbpose = FishState()
 

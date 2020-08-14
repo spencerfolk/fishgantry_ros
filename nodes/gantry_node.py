@@ -120,7 +120,7 @@ class FishGantry():
   def loop(self,event):
     rospy.logwarn("Squirt Command: "+"{0:.3f}".format(self.squirtcommand))
     rospy.logwarn("Tilt Command: "+"{0:.3f}".format(-self.pitchcommand))
-    serstring = '!'+"{0:.3f}".format(self.command.pose.position.x)+','+"{0:.3f}".format(self.command.pose.position.y)+','+"{0:.3f}".format(self.command.pose.position.z)+','+"{0:.3f}".format(0.0-self.pitchcommand)+','+"{0:.3f}".format(self.yawcommand+self.laps*2*pi)+','+"{0:.3f}".format(self.tailcommand)+','+"{0:.3f}".format(self.squirtcommand)+'\r\n'
+    serstring = '!'+"{0:.3f}".format(self.command.pose.position.x)+','+"{0:.3f}".format(self.command.pose.position.y)+','+"{0:.3f}".format(self.command.pose.position.z)+','+"{0:.3f}".format(-0.4-self.pitchcommand*4.0)+','+"{0:.3f}".format(self.yawcommand+self.laps*2*pi)+','+"{0:.3f}".format(self.tailcommand)+','+"{0:.3f}".format(self.squirtcommand)+'\r\n'
     # print "sending: "+serstring
     self.ser.write(serstring)
     line = self.ser.readline()
