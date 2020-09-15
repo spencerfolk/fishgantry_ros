@@ -20,7 +20,7 @@ boolean closedloop = true;
 boolean menable = true;// this is the motor enable
 
 //pulley radius is .01165 meters (.91/2)
-float m2rad = 1.0/.011;
+float m2rad = 1.0/(.0254/2);
 
 float kp = 50.0;
 float ki = 0.0;
