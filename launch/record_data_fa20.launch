@@ -1,0 +1,7 @@
+<launch>
+
+ 
+  <node pkg="rosbag" type="record" name="rosbag_record_cam"
+       args="record -o /home/michael-brown2/Desktop/FA20_Robot/ /camera2/usb_cam2/image_raw/compressed  /fishgantry/commandpose /fishgantry/robotpose /fishgantry/squirtpos /fishgantry/robotshot /fishgantry/brainstate /fishtarget_ros/experimental_condition /fishtarget_ros/target_is_out /fishtarget_ros/target_marker /fishtarget_ros/target_marker_array /fishtarget_ros/targetpose /fishgantry/exprunning /fishgantry/restingpose /fishgantry/tailpose   /tf  --split --duration=10m" />
+  
+ </launch>

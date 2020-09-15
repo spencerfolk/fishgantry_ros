@@ -88,7 +88,7 @@ void setup() {
   //attach the interrupts
   attachInterrupt(2, channelA, CHANGE);
   attachInterrupt(3, channelB, CHANGE);
-  //squirtservo.attach(11);
+  squirtservo.attach(11);
 }
 
 void homeit(){
