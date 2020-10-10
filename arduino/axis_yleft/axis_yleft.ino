@@ -69,6 +69,7 @@ int V;
 
 void setup() {
   Wire.begin(Address);
+  Wire.setWireTimeout(1000,true);
   Wire.onRequest(requestEvent);
   Wire.onReceive(receiveEvent);
   // put your setup code here, to run once:
