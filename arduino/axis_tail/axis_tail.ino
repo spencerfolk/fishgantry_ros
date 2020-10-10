@@ -18,7 +18,7 @@ float servocommand = 0.0;
 boolean closedloop = true;
 boolean menable = true;
 
-float TILTOFFSET = 70;
+float TILTOFFSET = 90;
 float fixedcommand = 0;
 
 float kp = 100.0;
