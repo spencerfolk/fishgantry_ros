@@ -1,4 +1,4 @@
-#include <WSWire.h>
+#include <Wire.h>
 //#include <Wire.h>
 
 #include "i2cAnything.h"
@@ -61,6 +61,8 @@ bool spoof6 = false;
 void setup() {
   Serial.begin(115200);
   Wire.begin(101);
+  Wire.setWireTimeout(1000,true);
+
 }
 
 void loop()

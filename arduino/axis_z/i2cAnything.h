@@ -2,7 +2,7 @@
 // May 2012
 
 #include <Arduino.h>
-#include <WSWire.h>
+//#include <WSWire.h>
 
 template <typename T> unsigned int I2C_writeAnything (const T& value)
   {

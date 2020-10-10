@@ -312,9 +312,9 @@ class FishBrainManager():
 
                     fishstate,fishshot = self.huntbrain.update(hunt,e,time.time())
                     self.robotshot = bool(fishshot)
+                    
                     shotmsg = Bool()
-                    shotmsg.data = self.robotshot
-                    self.robotshotpub.publish(shotmsg)
+                    shotmsg.data = False
                     
 
                     #update the timestamp on the squirt pose message
@@ -324,9 +324,14 @@ class FishBrainManager():
                     #this will ensure that the fish's mouth is fully submerged.
                     if(fishstate == "huntcapture"): #(self.robotshot):
                         self.squirtpose.pose.orientation.z = self.squirtservo_outpos
+                        shotmsg.data = True
+                    else:
+                        pass
                     if (fishstate =="huntswim"):
                         self.squirtpose.pose.orientation.z = self.squirtservo_inpos
                     self.squirtpose_pub.publish(self.squirtpose)
+                    self.robotshotpub.publish(shotmsg)
+                    
 
 
                     #rospy.logwarn(self.huntbrain.state)
