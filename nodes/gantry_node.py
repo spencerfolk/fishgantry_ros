@@ -127,6 +127,7 @@ class FishGantry():
     # print line
     linestrip = line.strip('\r\n')
     linesplit = line.split()
+    rospy.logwarn(line)
     if len(linesplit)>=3:
       #print shotslast, arduinonumshots,shotslast==(arduinonumshots+1)
       

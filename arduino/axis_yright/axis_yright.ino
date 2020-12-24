@@ -1,4 +1,4 @@
-#include <WSWire.h>
+#include <Wire.h>
 #include "i2cAnything.h"
 // Assign your channel in pins
 #define CHANNEL_A_PIN 0
